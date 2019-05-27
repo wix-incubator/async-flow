@@ -36,7 +36,8 @@ describe('AsyncFlow', () => {
   });
 
   it('Should synchronize tasks', async (done) => {
-    const flow = createAsyncFlow({afManager, name: 'flow1'});
+    const flow = createAsyncFlow({name: 'flow'});
+
     let string = '';
     flow.addTask(createTask({
       action: () => {
@@ -64,7 +65,7 @@ describe('AsyncFlow', () => {
   });
 
   it('Should can be paused and continue', (done) => {
-    const flow = createAsyncFlow({afManager, name: 'flow1'});
+    const flow = createAsyncFlow({name: 'flow'});
     let string = '';
     flow.addTask(createTask({
       action: () => {
@@ -72,7 +73,11 @@ describe('AsyncFlow', () => {
       }, interval: 100, onSuccess: () => {
         flow.pause();
         expect(flow.getRunningState()).toBe(RunningState.GOING_TO_PAUSE);
-        flow.start();
+        flow.addRunningStateListener((runningState, name) => {
+          expect(runningState).toBe(RunningState.PAUSED);
+          flow.removeAllListeners();
+          flow.start();
+        });
       }
     }));
     flow.addTask(createTask({
@@ -92,30 +97,13 @@ describe('AsyncFlow', () => {
   });
 
   it('Should not be able to run after stop', () => {
-    const flow = createAsyncFlow({afManager, name: 'flow1'});
-    let string = '';
-    flow.addTask(createTask({
-      action: () => {
-        string += 'a'
-      }, interval: 100
-    }));
-    flow.addTask(createTask({
-      action: () => {
-        string += 'b'
-      }, interval: 10
-    }));
-    flow.addTask(createTask({
-      action: () => {
-        string += 'c'
-      }, interval: 50
-    }));
-    flow.start();
+    const flow = createAsyncFlow({name: 'flow'});
     flow.stop();
     expect(flow.start).toThrow();
   });
 
   it('Should call onError method on exception', (done) => {
-    const flow = createAsyncFlow({afManager, name: 'flow1'});
+    const flow = createAsyncFlow({name: 'flow'});
     let string = '';
     const errorMsg = 'Test Exception';
     flow.addTask(createTask({

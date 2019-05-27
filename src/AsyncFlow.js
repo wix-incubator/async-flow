@@ -1,6 +1,8 @@
 function createAsyncFlow({afManager, name, onErrorPolicy}) {
   const flow = asyncFlow(afManager, name, onErrorPolicy);
-  afManager.register(flow);
+  if (afManager) {
+    afManager.register(flow);
+  }
   return flow;
 }
 
@@ -26,6 +28,11 @@ function asyncFlow(afManager, name, onErrorPolicy) {
   let _runningState = RunningState.PAUSED;
 
   const _tasks = [];
+
+  const _runningStateListeners = new Set(); // a listener is a function: (runningState, flowName) => {}
+
+  let _canBeStarted = true;
+  let _waitingStart = false;
 
   function getName() {
     return _name;
@@ -53,8 +60,8 @@ function asyncFlow(afManager, name, onErrorPolicy) {
     }
 
     _tasks.push(async () => {
-
       try {
+        _canBeStarted = false;
         const result = await task.func();
         if (task.onSuccess !== undefined) {
           task.onSuccess(result);
@@ -65,11 +72,16 @@ function asyncFlow(afManager, name, onErrorPolicy) {
         }
 
         if (_runningState === RunningState.GOING_TO_PAUSE) {
-          _runningState = RunningState.PAUSED;
+          _setRunningState(RunningState.PAUSED);
         }
 
         _doNext();
+        _canBeStarted = true;
 
+        if (_waitingStart) {
+          _waitingStart = false;
+          start();
+        }
       } catch (error) {
         if (task.onError !== undefined) {
           task.onError(error);
@@ -80,19 +92,19 @@ function asyncFlow(afManager, name, onErrorPolicy) {
         }
 
         if (_runningState === RunningState.GOING_TO_PAUSE) {
-          _runningState = RunningState.PAUSED;
+          _setRunningState(RunningState.PAUSED);
         }
 
         const errorPolicy = task.onErrorPolicy !== undefined ? task.onErrorPolicy : _onErrorPolicy;
         switch (errorPolicy) {
           case OnErrorPolicy.STOP:
-            _runningState = RunningState.STOPPED;
+            _setRunningState(RunningState.STOPPED);
             if (_afManager) {
               _afManager.unregister(_name);
             }
             break;
           case OnErrorPolicy.PAUSE:
-            _runningState = RunningState.PAUSED;
+            _setRunningState(RunningState.PAUSED);
             break;
           case OnErrorPolicy.RETRY_FIRST:
             _run();
@@ -102,6 +114,8 @@ function asyncFlow(afManager, name, onErrorPolicy) {
             _doNext();
             break;
         }
+
+        _canBeStarted = true;
       }
 
     });
@@ -123,12 +137,17 @@ function asyncFlow(afManager, name, onErrorPolicy) {
   }
 
   function start() {
+    if (!_canBeStarted) {
+      _waitingStart = true;
+      return;
+    }
+
     if (_runningState === RunningState.STOPPED) {
       throw Error('Stopped flow can\'t be restarted');
     }
 
     const lastState = _runningState;
-    _runningState = RunningState.RUNNING;
+    _setRunningState(RunningState.RUNNING);
 
     if (lastState === RunningState.PAUSED) {
       _run();
@@ -136,7 +155,8 @@ function asyncFlow(afManager, name, onErrorPolicy) {
   }
 
   function stop() {
-    _runningState = RunningState.STOPPED;
+    _waitingStart = false;
+    _setRunningState(RunningState.STOPPED);
     if (_afManager) {
       _afManager.unregister(_name);
     }
@@ -147,13 +167,35 @@ function asyncFlow(afManager, name, onErrorPolicy) {
       throw Error('Stopped flow can\'t be paused');
     }
 
+    _waitingStart = false;
     if (_runningState === RunningState.RUNNING) {
       if (_tasks.length === 0) {
-        _runningState = RunningState.PAUSED;
+        _setRunningState(RunningState.PAUSED);
       } else {
-        _runningState = RunningState.GOING_TO_PAUSE;
+        _setRunningState(RunningState.GOING_TO_PAUSE);
       }
     }
+  }
+
+  function _setRunningState(runningState) {
+    if (runningState !== _runningState) {
+      _runningState = runningState;
+      for (let listener of _runningStateListeners) {
+        listener(_runningState, _name);
+      }
+    }
+  }
+
+  function addRunningStateListener(listener) {
+    _runningStateListeners.add(listener);
+  }
+
+  function removeRunningStateListener(listener) {
+    _runningStateListeners.delete(listener);
+  }
+
+  function removeAllListeners() {
+    _runningStateListeners.clear();
   }
 
   return {
@@ -165,7 +207,11 @@ function asyncFlow(afManager, name, onErrorPolicy) {
 
     start,
     stop,
-    pause
+    pause,
+
+    addRunningStateListener,
+    removeRunningStateListener,
+    removeAllListeners
   }
 }
 
