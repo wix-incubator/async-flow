@@ -1,0 +1,21 @@
+{
+  "name": "async-flow",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/AsyncFlow.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "7.4.3",
+    "@babel/runtime": "7.4.3",
+    "babel-jest": "24.7.1",
+    "jest": "^24.8.0"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  }
+}
