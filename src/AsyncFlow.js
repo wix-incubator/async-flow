@@ -148,7 +148,7 @@ function asyncFlow(afManager, name, onErrorPolicy) {
     }
 
     if (_runningState === RunningState.RUNNING) {
-      if (tasks.length === 0) {
+      if (_tasks.length === 0) {
         _runningState = RunningState.PAUSED;
       } else {
         _runningState = RunningState.GOING_TO_PAUSE;
