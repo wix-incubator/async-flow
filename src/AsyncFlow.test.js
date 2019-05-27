@@ -1,7 +1,8 @@
 describe('AsyncFlow', () => {
-  const afManager = require('./AFManager').afManager();
+  // const afManager = require('./AFManager').afManager();
   const createAsyncFlow = require('./AsyncFlow').createAsyncFlow;
   const RunningState = require('./AsyncFlow').RunningState;
+  const OnErrorPolicy = require('./AsyncFlow').OnErrorPolicy;
 
   function createTask({action, interval, onSuccess, onError, onErrorPolicy}) {
     return {
@@ -32,7 +33,7 @@ describe('AsyncFlow', () => {
   }
 
   beforeEach(() => {
-    afManager.clear();
+//    afManager.clear();
   });
 
   it('Should synchronize tasks', async (done) => {
@@ -121,26 +122,126 @@ describe('AsyncFlow', () => {
     }));
     flow.addTask(createTask({
       action: () => {
-        string += 'c'
+        string += 'c';
       }, interval: 50
     }));
     flow.start();
   });
 
-  it('Should be stopped after exception if onErrorPolicy is STOP (default)', () => {
-
+  it('Should be stopped after exception if onErrorPolicy is STOP (default)', (done) => {
+    const flow = createAsyncFlow({name: 'flow'});
+    let string = '';
+    const errorMsg = 'Test Exception';
+    flow.addTask(createTask({
+      action: () => {
+        string += 'a';
+      }, interval: 100
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        throw errorMsg;
+      }, interval: 10, onError: (error) => {
+        flow.addRunningStateListener((runningState) => {
+          expect(flow.getRunningState()).toBe(RunningState.STOPPED);
+          done();
+        });
+      }
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        string += 'c';
+      }, interval: 50
+    }));
+    flow.start();
   });
 
-  it('Should be paused after exception if onErrorPolicy is PAUSE', () => {
-
+  it('Should be paused after exception if onErrorPolicy is PAUSE', (done) => {
+    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: OnErrorPolicy.PAUSE});
+    let string = '';
+    const errorMsg = 'Test Exception';
+    flow.addTask(createTask({
+      action: () => {
+        string += 'a'
+      }, interval: 100
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        throw errorMsg;
+      }, interval: 10, onError: (error) => {
+        flow.addRunningStateListener((runningState) => {
+          expect(flow.getRunningState()).toBe(RunningState.PAUSED);
+          done();
+        });
+      }
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        string += 'c';
+      }, interval: 50
+    }));
+    flow.start();
   });
 
-  it('Should retry operation immediately after exception if onErrorPolicy is RETRY_FIRST', () => {
-
+  it('Should retry operation immediately after exception if onErrorPolicy is RETRY_FIRST', (done) => {
+    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: OnErrorPolicy.RETRY_FIRST});
+    let string = '';
+    let step = 0;
+    const errorMsg = 'Test Exception';
+    flow.addTask(createTask({
+      action: () => {
+        string += 'a'
+      }, interval: 100
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        step++;
+        if (step === 1) {
+          throw errorMsg;
+        } else {
+          string += 'b';
+        }
+      }, interval: 10
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        string += 'c';
+      }, interval: 50, onSuccess: () => {
+        expect(string).toBe('abc');
+        done();
+      }
+    }));
+    flow.start();
   });
 
-  it('Should retry operation in the end of que after exception if onErrorPolicy is RETRY_LAST', () => {
-
+  it('Should retry operation in the end of que after exception if onErrorPolicy is RETRY_LAST', (done) => {
+    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: OnErrorPolicy.RETRY_LAST});
+    let string = '';
+    let step = 0;
+    const errorMsg = 'Test Exception';
+    flow.addTask(createTask({
+      action: () => {
+        string += 'a';
+      }, interval: 100
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        step++;
+        if (step === 1) {
+          throw errorMsg;
+        } else {
+          string += 'b';
+        }
+      }, interval: 10, onSuccess: () => {
+        expect(string).toBe('acb');
+        done();
+      }
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        string += 'c';
+      }, interval: 50
+    }));
+    flow.start();
   });
 
 });
