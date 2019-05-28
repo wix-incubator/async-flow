@@ -1,11 +1,13 @@
 describe('AsyncFlow', () => {
   const afManager = require('./AFManager').afManager();
-  const createAsyncFlow = require('./AsyncFlow').createAsyncFlow;
-  const RunningState = require('./AsyncFlow').RunningState;
-  const OnErrorPolicy = require('./AsyncFlow').OnErrorPolicy;
+  const AsyncFlow = require('./AsyncFlow');
+  const createAsyncFlow = AsyncFlow.createAsyncFlow;
+  const RunningState = AsyncFlow.RunningState;
+  const OnErrorPolicy = AsyncFlow.OnErrorPolicy;
+  const AFTask = require('./AFTask').AFTask;
 
   function createTask({action, interval, onSuccess, onError, onErrorPolicy}) {
-    return {
+    return new AFTask({
       func: () => {
         let resolve;
         let reject;
@@ -29,7 +31,7 @@ describe('AsyncFlow', () => {
       onSuccess,
       onError,
       onErrorPolicy
-    };
+    });
   }
 
   beforeEach(() => {

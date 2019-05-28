@@ -47,12 +47,7 @@ function asyncFlow(afManager, name, onErrorPolicy) {
   }
 
   /*
-    task : {
-      func,
-      [onSuccess,]
-      [onError,]
-      [onErrorPolicy]
-    }
+    task : AFTask
    */
   function addTask(task) {
     if (_runningState === RunningState.STOPPED) {
@@ -63,8 +58,8 @@ function asyncFlow(afManager, name, onErrorPolicy) {
       try {
         _canBeStarted = false;
         const result = await task.func();
-        if (task.onSuccess !== undefined) {
-          task.onSuccess(result);
+        for (const onSuccess of task.onSuccess) {
+          onSuccess(result);
         }
 
         if (_runningState === RunningState.STOPPED) {
@@ -83,8 +78,8 @@ function asyncFlow(afManager, name, onErrorPolicy) {
           start();
         }
       } catch (error) {
-        if (task.onError !== undefined) {
-          task.onError(error);
+        for (const onError of task.onError) {
+          onError(error);
         }
 
         if (_runningState === RunningState.STOPPED) {
