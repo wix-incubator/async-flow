@@ -1,6 +1,19 @@
+const AFTaskState = Object.freeze({
+  NONE: 0,
+  WAITING: 1,
+  RUNNING: 2,
+  DONE: 3,
+  ERROR: 4
+});
+
+const AFTaskMerger = Object.freeze({
+  NONE: 0,
+  BASIC: 1
+});
+
 class AFTask {
 
-  constructor({func, onSuccess, onError, onErrorPolicy, mergePolicy}) {
+  constructor({func, onSuccess, onError, onErrorPolicy, mergePolicy, merger}) {
     this._func = func;
 
     this._onSuccess = new Set();
@@ -16,16 +29,67 @@ class AFTask {
     this._onErrorPolicy = onErrorPolicy;
     this._mergePolicy = mergePolicy;
 
+    this._merger = merger;
+
+    this._state = AFTaskState.NONE;
+
     this.merge = this.merge.bind(this);
+    this.mergeListeners = this.mergeListeners.bind(this);
+    this.isTaskEqual = this.isTaskEqual.bind(this);
+    this._basicMerge = this._basicMerge.bind(this);
   }
 
-  // noinspection JSMethodCanBeStatic
   /**
    *
    * @param task
    */
   merge(task) {
+    if (!(task instanceof AFTask)) {
+      throw 'Can\'t merge not AFTask instance';
+    }
+
+    if (!this._merger || this._merger === AFTaskMerger.NONE) {
+      return false;
+    }
+
+    if (this._merger === AFTaskMerger.BASIC) {
+      return this._basicMerge(task);
+    }
+
+    if (typeof this._merger === 'function') {
+      return this._merger(task);
+    }
+
     return false;
+  }
+
+  // noinspection JSMethodCanBeStatic
+  isTaskEqual(task) {
+    return false;
+  }
+
+  _basicMerge(task) {
+    if (this._state !== AFTaskState.WAITING) {
+      return false;
+    }
+
+    if (!this.isTaskEqual(task)) {
+      return false;
+    }
+
+    return this.mergeListeners(task);
+  }
+
+  mergeListeners(...tasks) {
+    for (const task of tasks) {
+      for (const onSuccess of task.onSuccess) {
+        this.onSuccess.add(onSuccess);
+      }
+      for (const onError of task.onError) {
+        this.onError.add(onError);
+      }
+    }
+    return this;
   }
 
   get func() {
@@ -47,8 +111,18 @@ class AFTask {
   get mergePolicy() {
     return this._mergePolicy;
   }
+
+  get state() {
+    return this._state;
+  }
+
+  set state(value) {
+    this._state = value;
+  }
 }
 
 module.exports = {
-  AFTask
+  AFTask,
+  AFTaskState,
+  AFTaskMerger
 };
