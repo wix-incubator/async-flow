@@ -1,5 +1,5 @@
 describe('AsyncFlow', () => {
-  // const afManager = require('./AFManager').afManager();
+  const afManager = require('./AFManager').afManager();
   const createAsyncFlow = require('./AsyncFlow').createAsyncFlow;
   const RunningState = require('./AsyncFlow').RunningState;
   const OnErrorPolicy = require('./AsyncFlow').OnErrorPolicy;
@@ -33,7 +33,7 @@ describe('AsyncFlow', () => {
   }
 
   beforeEach(() => {
-//    afManager.clear();
+    afManager.clear();
   });
 
   it('Should synchronize tasks', async (done) => {
@@ -61,8 +61,48 @@ describe('AsyncFlow', () => {
     flow.start();
   });
 
-  it('Should synchronize two flows independently', () => {
+  it('Should synchronize two flows independently', (done) => {
+    let string = '';
 
+    const flow1 = createAsyncFlow({afManager, name: 'flow1'});
+    flow1.addTask(createTask({
+      action: () => {
+        string += 'a'
+      }, interval: 100
+    }));
+    flow1.addTask(createTask({
+      action: () => {
+        string += 'b'
+      }, interval: 10
+    }));
+    flow1.addTask(createTask({
+      action: () => {
+        string += 'c'
+      }, interval: 50, onSuccess: () => {
+        expect(string).toBe('xyzabc');
+        done();
+      }
+    }));
+
+    const flow2 = createAsyncFlow({afManager, name: 'flow2'});
+    flow2.addTask(createTask({
+      action: () => {
+        string += 'x'
+      }, interval: 20
+    }));
+    flow2.addTask(createTask({
+      action: () => {
+        string += 'y'
+      }, interval: 20
+    }));
+    flow2.addTask(createTask({
+      action: () => {
+        string += 'z'
+      }, interval: 20
+    }));
+
+    flow1.start();
+    flow2.start();
   });
 
   it('Should can be paused and continue', (done) => {
