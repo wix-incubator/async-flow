@@ -1,3 +1,5 @@
+const AFTaskState = require('./AFTask').AFTaskState;
+
 function createAsyncFlow({afManager, name, onErrorPolicy}) {
   const flow = asyncFlow(afManager, name, onErrorPolicy);
   if (afManager) {
@@ -20,10 +22,11 @@ const RunningState = Object.freeze({
   GOING_TO_PAUSE: 4
 });
 
-function asyncFlow(afManager, name, onErrorPolicy) {
+function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
   const _afManager = afManager;
   const _name = name;
   const _onErrorPolicy = onErrorPolicy !== undefined ? onErrorPolicy : OnErrorPolicy.STOP;
+  const _mergingTasks = !!mergingTasks;
 
   let _runningState = RunningState.PAUSED;
 
@@ -54,10 +57,21 @@ function asyncFlow(afManager, name, onErrorPolicy) {
       throw Error('Can\'t add task to stopped flow');
     }
 
+    if (_mergingTasks && _tryToMergeTask(task)) {
+      return;
+    }
+
+    task.state = AFTaskState.WAITING;
+
     _tasks.push(async () => {
       try {
+        task.state = AFTaskState.RUNNING;
+
         _canBeStarted = false;
         const result = await task.func();
+
+        task.state = AFTaskState.DONE;
+
         for (const onSuccess of task.onSuccess) {
           onSuccess(result);
         }
@@ -78,6 +92,9 @@ function asyncFlow(afManager, name, onErrorPolicy) {
           start();
         }
       } catch (error) {
+
+        task.state = AFTaskState.ERROR;
+
         for (const onError of task.onError) {
           onError(error);
         }
@@ -128,6 +145,23 @@ function asyncFlow(afManager, name, onErrorPolicy) {
   function _run() {
     if (_tasks.length > 0 && _runningState === RunningState.RUNNING) {
       _tasks[0]();
+    }
+  }
+
+  function _tryToMergeTask(task) {
+    if (!task.isMergeable()) {
+      return false;
+    }
+
+    for (let i = 0; i < _tasks.length; i++) {
+      const t = _tasks[i];
+      if (t.isMergeable()) {
+        const mergedTask = t.merge(task);
+        if (mergedTask) {
+          _tasks[i] = mergedTask;
+          return true;
+        }
+      }
     }
   }
 

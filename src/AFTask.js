@@ -13,7 +13,7 @@ const AFTaskMerger = Object.freeze({
 
 class AFTask {
 
-  constructor({func, onSuccess, onError, onErrorPolicy, mergePolicy, merger}) {
+  constructor({func, onSuccess, onError, onErrorPolicy, merger}) {
     this._func = func;
 
     this._onSuccess = new Set();
@@ -27,7 +27,6 @@ class AFTask {
     }
 
     this._onErrorPolicy = onErrorPolicy;
-    this._mergePolicy = mergePolicy;
 
     this._merger = merger;
 
@@ -108,8 +107,8 @@ class AFTask {
     return this._onErrorPolicy;
   }
 
-  get mergePolicy() {
-    return this._mergePolicy;
+  isMergeable() {
+    return !!this._merger && this._merger !== AFTaskMerger.NONE;
   }
 
   get state() {
