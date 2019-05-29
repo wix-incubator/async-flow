@@ -116,7 +116,7 @@ describe('AsyncFlow', () => {
       }, interval: 100, onSuccess: () => {
         flow.pause();
         expect(flow.getRunningState()).toBe(RunningState.GOING_TO_PAUSE);
-        flow.addRunningStateListener((runningState, name) => {
+        flow.addRunningStateListener((runningState) => {
           expect(runningState).toBe(RunningState.PAUSED);
           flow.removeAllListeners();
           flow.start();
@@ -182,8 +182,8 @@ describe('AsyncFlow', () => {
     flow.addTask(createTask({
       action: () => {
         throw errorMsg;
-      }, interval: 10, onError: (error) => {
-        flow.addRunningStateListener((runningState) => {
+      }, interval: 10, onError: () => {
+        flow.addRunningStateListener(() => {
           expect(flow.getRunningState()).toBe(RunningState.STOPPED);
           done();
         });
@@ -209,8 +209,8 @@ describe('AsyncFlow', () => {
     flow.addTask(createTask({
       action: () => {
         throw errorMsg;
-      }, interval: 10, onError: (error) => {
-        flow.addRunningStateListener((runningState) => {
+      }, interval: 10, onError: () => {
+        flow.addRunningStateListener(() => {
           expect(flow.getRunningState()).toBe(RunningState.PAUSED);
           done();
         });

@@ -33,6 +33,7 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
   const _tasks = [];
 
   const _runningStateListeners = new Set(); // a listener is a function: (runningState, flowName) => {}
+  const _flowIsEmptyListeners = new Set();
 
   let _canBeStarted = true;
   let _waitingStart = false;
@@ -63,7 +64,27 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
 
     task.state = AFTaskState.WAITING;
 
-    _tasks.push(async () => {
+    _tasks.push(task);
+
+    if (_tasks.length === 1 && _runningState === RunningState.RUNNING) {
+      _run();
+    }
+  }
+
+  function _doNext() {
+    _tasks.shift();
+    _notifyFlowIsEmptyListenersIfNeeded();
+    _run();
+  }
+
+  function _run() {
+    if (_tasks.length > 0 && _runningState === RunningState.RUNNING) {
+      // noinspection JSIgnoredPromiseFromCall
+      _runTask(_tasks[0]);
+    }
+  }
+
+  async function _runTask(task) {
       try {
         task.state = AFTaskState.RUNNING;
 
@@ -129,23 +150,6 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
 
         _canBeStarted = true;
       }
-
-    });
-
-    if (_tasks.length === 1 && _runningState === RunningState.RUNNING) {
-      _run();
-    }
-  }
-
-  function _doNext() {
-    _tasks.shift();
-    _run();
-  }
-
-  function _run() {
-    if (_tasks.length > 0 && _runningState === RunningState.RUNNING) {
-      _tasks[0]();
-    }
   }
 
   function _tryToMergeTask(task) {
@@ -225,6 +229,27 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
 
   function removeAllListeners() {
     _runningStateListeners.clear();
+    _flowIsEmptyListeners.clear();
+  }
+
+  function length() {
+    return _tasks.length;
+  }
+
+  function addFlowIsEmptyListener(listener) {
+    _flowIsEmptyListeners.add(listener);
+  }
+
+  function removeFlowIsEmptyListener(listener) {
+    _flowIsEmptyListeners.delete(listener);
+  }
+
+  function _notifyFlowIsEmptyListenersIfNeeded() {
+    if (_tasks.length === 0 && !_waitingStart) {
+      for (const listener of _flowIsEmptyListeners) {
+        listener(_name);
+      }
+    }
   }
 
   return {
@@ -240,7 +265,12 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
 
     addRunningStateListener,
     removeRunningStateListener,
-    removeAllListeners
+    removeAllListeners,
+
+    length,
+
+    addFlowIsEmptyListener,
+    removeFlowIsEmptyListener
   }
 }
 

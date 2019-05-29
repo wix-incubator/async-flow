@@ -12,6 +12,7 @@
   "devDependencies": {
     "@babel/core": "7.4.3",
     "@babel/runtime": "7.4.3",
+    "@types/jest": "23.3.13",
     "babel-jest": "24.7.1",
     "jest": "^24.8.0"
   },
