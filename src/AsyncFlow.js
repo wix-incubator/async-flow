@@ -1,7 +1,7 @@
 const AFTaskState = require('./AFTask').AFTaskState;
 
-function createAsyncFlow({afManager, name, onErrorPolicy}) {
-  const flow = asyncFlow(afManager, name, onErrorPolicy);
+function createAsyncFlow({afManager, name, onErrorPolicy, mergingTasks}) {
+  const flow = asyncFlow(afManager, name, onErrorPolicy, mergingTasks);
   if (afManager) {
     afManager.register(flow);
   }
