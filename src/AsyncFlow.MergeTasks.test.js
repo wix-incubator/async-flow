@@ -1,6 +1,7 @@
 describe('AsyncFlow: merge tasks with basic merger', () => {
   const AsyncFlow = require('./AsyncFlow');
   const createAsyncFlow = AsyncFlow.createAsyncFlow;
+  const MergingPolicy = AsyncFlow.MergingPolicy;
   const AFTaskModule = require('./AFTask');
   const AFTask = AFTaskModule.AFTask;
   const AFTaskMerger = AFTaskModule.AFTaskMerger;
@@ -47,7 +48,7 @@ describe('AsyncFlow: merge tasks with basic merger', () => {
   }
 
   it('Should merge waiting task', async (done) => {
-    const flow = createAsyncFlow({name: 'flow', mergingTasks: true});
+    const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.HEAD});
 
     flow.addFlowIsEmptyListener(() => {
       expect(arrayToString(array)).toBe('abc');
@@ -64,7 +65,7 @@ describe('AsyncFlow: merge tasks with basic merger', () => {
   });
 
   it('Should not merge running task', async (done) => {
-    const flow = createAsyncFlow({name: 'flow', mergingTasks: true});
+    const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.HEAD});
 
     flow.addFlowIsEmptyListener(() => {
       expect(arrayToString(array)).toBe('aba');
@@ -81,7 +82,7 @@ describe('AsyncFlow: merge tasks with basic merger', () => {
   });
 
   it('Should merge onSuccess listeners', async (done) => {
-    const flow = createAsyncFlow({name: 'flow', mergingTasks: true});
+    const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.HEAD});
 
     flow.addFlowIsEmptyListener(() => {
       expect(arrayToString(array)).toBe('ab!?c');

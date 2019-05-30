@@ -1,7 +1,7 @@
 const AFTaskState = require('./AFTask').AFTaskState;
 
-function createAsyncFlow({afManager, name, onErrorPolicy, mergingTasks}) {
-  const flow = asyncFlow(afManager, name, onErrorPolicy, mergingTasks);
+function createAsyncFlow({afManager, name, onErrorPolicy, mergingPolicy}) {
+  const flow = asyncFlow(afManager, name, onErrorPolicy, mergingPolicy);
   if (afManager) {
     afManager.register(flow);
   }
@@ -9,24 +9,30 @@ function createAsyncFlow({afManager, name, onErrorPolicy, mergingTasks}) {
 }
 
 const OnErrorPolicy = Object.freeze({
-  STOP: 1,
-  PAUSE: 2,
-  RETRY_FIRST: 3, // re add to head of _tasks
-  RETRY_LAST: 4 // re add to tail of _tasks
+  STOP: 0,
+  PAUSE: 1,
+  RETRY_FIRST: 2, // re add to head of _tasks
+  RETRY_LAST: 3 // re add to tail of _tasks
 });
 
 const RunningState = Object.freeze({
-  PAUSED: 1,
-  RUNNING: 2,
-  STOPPED: 3,
-  GOING_TO_PAUSE: 4
+  PAUSED: 0,
+  RUNNING: 1,
+  STOPPED: 2,
+  GOING_TO_PAUSE: 3
 });
 
-function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
+const MergingPolicy = Object.freeze({
+  NONE: 0,
+  HEAD: 1,
+  TAIL: 2
+});
+
+function asyncFlow(afManager, name, onErrorPolicy, mergingPolicy) {
   const _afManager = afManager;
   const _name = name;
   const _onErrorPolicy = onErrorPolicy !== undefined ? onErrorPolicy : OnErrorPolicy.STOP;
-  const _mergingTasks = !!mergingTasks;
+  const _mergingPolicy = mergingPolicy !== undefined ? mergingPolicy : MergingPolicy.NONE;
 
   let _runningState = RunningState.PAUSED;
 
@@ -58,7 +64,7 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
       throw Error('Can\'t add task to stopped flow');
     }
 
-    if (_mergingTasks && _tryToMergeTask(task)) {
+    if (_mergingPolicy !== MergingPolicy.NONE && _tryToMergeTask(task)) {
       return;
     }
 
@@ -157,6 +163,16 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
       return false;
     }
 
+    switch (_mergingPolicy) {
+      case MergingPolicy.HEAD:
+        return _tryToMergeHead(task);
+      case MergingPolicy.TAIL:
+        return _tryToMergeTail(task);
+    }
+
+  }
+
+  function _tryToMergeHead(task) {
     for (let i = 0; i < _tasks.length; i++) {
       const t = _tasks[i];
       if (t.isMergeable()) {
@@ -167,6 +183,25 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
         }
       }
     }
+
+    return false;
+  }
+
+  function _tryToMergeTail(task) {
+    for (let i = _tasks.length - 1; i >= 0; i--) {
+      const t = _tasks[i];
+      if (t.isMergeable()) {
+        const mergedTask = t.merge(task);
+        if (mergedTask) {
+          _tasks[i] = mergedTask;
+          return true;
+        } else {
+          return false;
+        }
+      }
+    }
+
+    return false;
   }
 
   function start() {
@@ -277,5 +312,6 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingTasks) {
 module.exports = {
   createAsyncFlow,
   OnErrorPolicy,
-  RunningState
+  RunningState,
+  MergingPolicy
 };
