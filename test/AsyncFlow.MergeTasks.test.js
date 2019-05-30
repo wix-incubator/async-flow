@@ -1,10 +1,9 @@
 describe('AsyncFlow: merge tasks with basic merger', () => {
-  const AsyncFlow = require('./AsyncFlow');
+  const AsyncFlow = require('../src/AsyncFlow');
   const createAsyncFlow = AsyncFlow.createAsyncFlow;
   const MergingPolicy = AsyncFlow.MergingPolicy;
-  const AFTaskModule = require('./AFTask');
-  const AFTask = AFTaskModule.AFTask;
-  const AFTaskMerger = AFTaskModule.AFTaskMerger;
+  const AFTask = AsyncFlow.AFTask;
+  const AFTaskMerger = AsyncFlow.AFTaskMerger;
 
   class SymbolTask extends AFTask {
     constructor({symbol, array, interval, onSuccess, onError, onErrorPolicy}) {

@@ -1,4 +1,4 @@
-function afManager() {
+function createAFManager() {
   const _flows = {};
 
   function register(asyncFlow) {
@@ -18,18 +18,19 @@ function afManager() {
   }
 
   function unregisterAll() {
-    for (let name in _flows) {
+    for (const name in _flows) {
       unregister(name);
     }
   }
 
   function clear() {
-    for (let name in _flows) {
+    for (const name in _flows) {
       const flow = resolve(name);
       flow.stop();
     }
   }
 
+  // noinspection JSUnusedGlobalSymbols
   return {
     register,
     unregister,
@@ -40,5 +41,5 @@ function afManager() {
 }
 
 module.exports = {
-  afManager
+  createAFManager
 };

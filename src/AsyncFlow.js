@@ -1,7 +1,13 @@
-const AFTaskState = require('./AFTask').AFTaskState;
+const AFTaskModule = require('./AFTask');
+const AFTask = AFTaskModule.AFTask;
+const AFTaskState = AFTaskModule.AFTaskState;
+const AFTaskMerger = AFTaskModule.AFTaskMerger;
 
-function createAsyncFlow({afManager, name, onErrorPolicy, mergingPolicy}) {
-  const flow = asyncFlow(afManager, name, onErrorPolicy, mergingPolicy);
+const AFManagerModule = require('./AFManager');
+const createAFManager = AFManagerModule.createAFManager;
+
+function createAsyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
+  const flow = asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue});
   if (afManager) {
     afManager.register(flow);
   }
@@ -28,7 +34,7 @@ const MergingPolicy = Object.freeze({
   TAIL: 2
 });
 
-function asyncFlow(afManager, name, onErrorPolicy, mergingPolicy) {
+function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   const _afManager = afManager;
   const _name = name;
   const _onErrorPolicy = onErrorPolicy !== undefined ? onErrorPolicy : OnErrorPolicy.STOP;
@@ -43,6 +49,8 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingPolicy) {
 
   let _canBeStarted = true;
   let _waitingStart = false;
+
+  let _lastResult = initValue;
 
   function getName() {
     return _name;
@@ -91,71 +99,72 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingPolicy) {
   }
 
   async function _runTask(task) {
-      try {
-        task.state = AFTaskState.RUNNING;
+    try {
+      task.state = AFTaskState.RUNNING;
 
-        _canBeStarted = false;
-        const result = await task.func();
+      _canBeStarted = false;
+      const result = await task.func(_lastResult);
+      _lastResult = result;
 
-        task.state = AFTaskState.DONE;
+      task.state = AFTaskState.DONE;
 
-        for (const onSuccess of task.onSuccess) {
-          onSuccess(result);
-        }
-
-        if (_runningState === RunningState.STOPPED) {
-          return;
-        }
-
-        if (_runningState === RunningState.GOING_TO_PAUSE) {
-          _setRunningState(RunningState.PAUSED);
-        }
-
-        _doNext();
-        _canBeStarted = true;
-
-        if (_waitingStart) {
-          _waitingStart = false;
-          start();
-        }
-      } catch (error) {
-
-        task.state = AFTaskState.ERROR;
-
-        for (const onError of task.onError) {
-          onError(error);
-        }
-
-        if (_runningState === RunningState.STOPPED) {
-          return;
-        }
-
-        if (_runningState === RunningState.GOING_TO_PAUSE) {
-          _setRunningState(RunningState.PAUSED);
-        }
-
-        const errorPolicy = task.onErrorPolicy !== undefined ? task.onErrorPolicy : _onErrorPolicy;
-        switch (errorPolicy) {
-          case OnErrorPolicy.STOP:
-            _setRunningState(RunningState.STOPPED);
-            if (_afManager) {
-              _afManager.unregister(_name);
-            }
-            break;
-          case OnErrorPolicy.PAUSE:
-            _setRunningState(RunningState.PAUSED);
-            break;
-          case OnErrorPolicy.RETRY_FIRST:
-            _run();
-            break;
-          case OnErrorPolicy.RETRY_LAST:
-            addTask(task);
-            _doNext();
-            break;
-        }
-
-        _canBeStarted = true;
+      for (const onSuccess of task.onSuccess) {
+        onSuccess(result);
       }
+
+      if (_runningState === RunningState.STOPPED) {
+        return;
+      }
+
+      if (_runningState === RunningState.GOING_TO_PAUSE) {
+        _setRunningState(RunningState.PAUSED);
+      }
+
+      _doNext();
+      _canBeStarted = true;
+
+      if (_waitingStart) {
+        _waitingStart = false;
+        start();
+      }
+    } catch (error) {
+
+      task.state = AFTaskState.ERROR;
+
+      for (const onError of task.onError) {
+        onError(error);
+      }
+
+      if (_runningState === RunningState.STOPPED) {
+        return;
+      }
+
+      if (_runningState === RunningState.GOING_TO_PAUSE) {
+        _setRunningState(RunningState.PAUSED);
+      }
+
+      const errorPolicy = task.onErrorPolicy !== undefined ? task.onErrorPolicy : _onErrorPolicy;
+      switch (errorPolicy) {
+        case OnErrorPolicy.STOP:
+          _setRunningState(RunningState.STOPPED);
+          if (_afManager) {
+            _afManager.unregister(_name);
+          }
+          break;
+        case OnErrorPolicy.PAUSE:
+          _setRunningState(RunningState.PAUSED);
+          break;
+        case OnErrorPolicy.RETRY_FIRST:
+          _run();
+          break;
+        case OnErrorPolicy.RETRY_LAST:
+          addTask(task);
+          _doNext();
+          break;
+      }
+
+      _canBeStarted = true;
+    }
   }
 
   function _tryToMergeTask(task) {
@@ -248,7 +257,7 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingPolicy) {
   function _setRunningState(runningState) {
     if (runningState !== _runningState) {
       _runningState = runningState;
-      for (let listener of _runningStateListeners) {
+      for (const listener of _runningStateListeners) {
         listener(_runningState, _name);
       }
     }
@@ -282,11 +291,12 @@ function asyncFlow(afManager, name, onErrorPolicy, mergingPolicy) {
   function _notifyFlowIsEmptyListenersIfNeeded() {
     if (_tasks.length === 0 && !_waitingStart) {
       for (const listener of _flowIsEmptyListeners) {
-        listener(_name);
+        listener({flowName: _name, result: _lastResult});
       }
     }
   }
 
+  // noinspection JSUnusedGlobalSymbols
   return {
     getName,
     getOnErrorPolicy,
@@ -313,5 +323,11 @@ module.exports = {
   createAsyncFlow,
   OnErrorPolicy,
   RunningState,
-  MergingPolicy
+  MergingPolicy,
+
+  AFTask,
+  AFTaskState,
+  AFTaskMerger,
+
+  createAFManager
 };

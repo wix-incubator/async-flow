@@ -1,10 +1,10 @@
 describe('AsyncFlow', () => {
-  const afManager = require('./AFManager').afManager();
-  const AsyncFlow = require('./AsyncFlow');
+  const AsyncFlow = require('../src/AsyncFlow');
+  const afManager = AsyncFlow.createAFManager();
   const createAsyncFlow = AsyncFlow.createAsyncFlow;
   const RunningState = AsyncFlow.RunningState;
   const OnErrorPolicy = AsyncFlow.OnErrorPolicy;
-  const AFTask = require('./AFTask').AFTask;
+  const AFTask = AsyncFlow.AFTask;
 
   function createTask({action, interval, onSuccess, onError, onErrorPolicy}) {
     return new AFTask({

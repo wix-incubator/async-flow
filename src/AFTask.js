@@ -62,7 +62,7 @@ class AFTask {
     return false;
   }
 
-  // noinspection JSMethodCanBeStatic
+  // noinspection JSMethodCanBeStatic,JSUnusedLocalSymbols
   isTaskEqual(task) {
     return false;
   }
@@ -111,10 +111,12 @@ class AFTask {
     return !!this._merger && this._merger !== AFTaskMerger.NONE;
   }
 
+  // noinspection JSUnusedGlobalSymbols
   get state() {
     return this._state;
   }
 
+  // noinspection JSUnusedGlobalSymbols
   set state(value) {
     this._state = value;
   }
