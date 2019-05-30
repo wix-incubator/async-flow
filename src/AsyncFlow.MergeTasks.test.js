@@ -47,7 +47,7 @@ describe('AsyncFlow: merge tasks with basic merger', () => {
     return string;
   }
 
-  it('Should merge waiting task', async (done) => {
+  it('Should merge waiting task (HEAD policy)', async (done) => {
     const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.HEAD});
 
     flow.addFlowIsEmptyListener(() => {
@@ -104,6 +104,40 @@ describe('AsyncFlow: merge tasks with basic merger', () => {
         array.push('?');
       }
     }));
+  });
+
+  it('Should merge tail task (TAIL policy)', async (done) => {
+    const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.TAIL});
+
+    flow.addFlowIsEmptyListener(() => {
+      expect(arrayToString(array)).toBe('abc');
+      done();
+    });
+
+    let array = [];
+
+    flow.addTask(new SymbolTask({symbol: 'a', array, interval: 100}));
+    flow.start();
+    flow.addTask(new SymbolTask({symbol: 'b', array, interval: 10}));
+    flow.addTask(new SymbolTask({symbol: 'c', array, interval: 50}));
+    flow.addTask(new SymbolTask({symbol: 'c', array, interval: 50}));
+  });
+
+  it('Should not merge non tail task (TAIL policy)', async (done) => {
+    const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.TAIL});
+
+    flow.addFlowIsEmptyListener(() => {
+      expect(arrayToString(array)).toBe('abcb');
+      done();
+    });
+
+    let array = [];
+
+    flow.addTask(new SymbolTask({symbol: 'a', array, interval: 100}));
+    flow.start();
+    flow.addTask(new SymbolTask({symbol: 'b', array, interval: 10}));
+    flow.addTask(new SymbolTask({symbol: 'c', array, interval: 50}));
+    flow.addTask(new SymbolTask({symbol: 'b', array, interval: 10}));
   });
 
 });
