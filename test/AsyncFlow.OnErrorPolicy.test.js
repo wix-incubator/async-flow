@@ -176,18 +176,9 @@ describe('AsyncFlow: OnErrorPolicy', () => {
       }
     });
 
-    let emptyCallbackCounter = 0;
     flow.addFlowIsEmptyListener(({result}) => {
-      if (emptyCallbackCounter === 0) {
-        expect(result).toBe('bc');
-      }
-
-      if (emptyCallbackCounter === 1) {
-        expect(result).toBe('bca');
-        done();
-      }
-
-      emptyCallbackCounter++;
+      expect(result).toBe('bca');
+      done();
     });
 
     let step = 0;
