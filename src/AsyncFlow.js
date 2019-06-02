@@ -14,11 +14,12 @@ function createAsyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initVal
   return flow;
 }
 
-const OnErrorPolicy = Object.freeze({
+const OnErrorAction = Object.freeze({
   STOP: 0,
   PAUSE: 1,
   RETRY_FIRST: 2, // re add to head of _tasks
-  RETRY_LAST: 3 // re add to tail of _tasks
+  RETRY_LAST: 3,  // re add to tail of _tasks
+  CONTINUE: 4     // just run next task
 });
 
 const RunningState = Object.freeze({
@@ -37,7 +38,7 @@ const MergingPolicy = Object.freeze({
 function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   const _afManager = afManager;
   const _name = name;
-  const _onErrorPolicy = onErrorPolicy !== undefined ? onErrorPolicy : OnErrorPolicy.STOP;
+  const _onErrorPolicy = onErrorPolicy !== undefined ? onErrorPolicy : {action: OnErrorAction.STOP};
   const _mergingPolicy = mergingPolicy !== undefined ? mergingPolicy : MergingPolicy.NONE;
 
   let _runningState = RunningState.PAUSED;
@@ -67,7 +68,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   /*
     task : AFTask
    */
-  function addTask(task) {
+  function addTask(task, intoHead) {
     if (_runningState === RunningState.STOPPED) {
       throw Error('Can\'t add task to stopped flow');
     }
@@ -78,7 +79,15 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
     task.state = AFTaskState.WAITING;
 
-    _tasks.push(task);
+    if (intoHead) {
+      if (_tasks.length === 0) {
+        _tasks.push(task);
+      } else {
+        _tasks.splice(1, 0, task);
+      }
+    } else {
+      _tasks.push(task);
+    }
 
     if (_tasks.length === 1 && _runningState === RunningState.RUNNING) {
       _run();
@@ -144,26 +153,62 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       }
 
       const errorPolicy = task.onErrorPolicy !== undefined ? task.onErrorPolicy : _onErrorPolicy;
-      switch (errorPolicy) {
-        case OnErrorPolicy.STOP:
+      switch (errorPolicy.action) {
+        case OnErrorAction.STOP:
           _setRunningState(RunningState.STOPPED);
           if (_afManager) {
             _afManager.unregister(_name);
           }
           break;
-        case OnErrorPolicy.PAUSE:
+
+        case OnErrorAction.PAUSE:
           _setRunningState(RunningState.PAUSED);
           break;
-        case OnErrorPolicy.RETRY_FIRST:
-          _run();
+        // case OnErrorAction.RETRY_FIRST:
+        //   _run();
+        //   break;
+        // case OnErrorAction.RETRY_LAST:
+        //   addTask(task);
+        //   _doNext();
+        //   break;
+
+        case OnErrorAction.RETRY_FIRST:
+        case OnErrorAction.RETRY_LAST:
+          _retry(task, errorPolicy);
           break;
-        case OnErrorPolicy.RETRY_LAST:
-          addTask(task);
+
+        case OnErrorAction.CONTINUE:
           _doNext();
           break;
       }
 
       _canBeStarted = true;
+    }
+  }
+
+  function _retry(task, errorPolicy) {
+    if (errorPolicy.attempts !== undefined) {
+      if (errorPolicy.attempts <= 0) {
+        _doNext();
+      } else {
+        errorPolicy.attempts--;
+      }
+    }
+
+    if (errorPolicy.delay === undefined) {
+      switch (errorPolicy.action) {
+        case OnErrorAction.RETRY_FIRST:
+          _run();
+          break;
+        case OnErrorAction.RETRY_LAST:
+          addTask(task);
+          _doNext();
+          break;
+      }
+    } else {
+      let delay = typeof errorPolicy.delay === 'function' ? errorPolicy.delay() : errorPolicy.delay;
+      setTimeout(() => addTask(task, errorPolicy.action === OnErrorAction.RETRY_FIRST), delay);
+      _doNext();
     }
   }
 
@@ -321,7 +366,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
 module.exports = {
   createAsyncFlow,
-  OnErrorPolicy,
+  OnErrorAction,
   RunningState,
   MergingPolicy,
 

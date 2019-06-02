@@ -1,4 +1,4 @@
-describe('AsyncFlow: merge tasks with basic merger', () => {
+describe('AsyncFlow: Pass results', () => {
   const AsyncFlow = require('../src/AsyncFlow');
   const createAsyncFlow = AsyncFlow.createAsyncFlow;
   const AFTask = AsyncFlow.AFTask;

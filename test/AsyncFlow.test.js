@@ -3,7 +3,7 @@ describe('AsyncFlow', () => {
   const afManager = AsyncFlow.createAFManager();
   const createAsyncFlow = AsyncFlow.createAsyncFlow;
   const RunningState = AsyncFlow.RunningState;
-  const OnErrorPolicy = AsyncFlow.OnErrorPolicy;
+  const OnErrorAction = AsyncFlow.OnErrorAction;
   const AFTask = AsyncFlow.AFTask;
 
   function createTask({action, interval, onSuccess, onError, onErrorPolicy}) {
@@ -198,7 +198,7 @@ describe('AsyncFlow', () => {
   });
 
   it('Should be paused after exception if onErrorPolicy is PAUSE', (done) => {
-    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: OnErrorPolicy.PAUSE});
+    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: {action: OnErrorAction.PAUSE}});
     let string = '';
     const errorMsg = 'Test Exception';
     flow.addTask(createTask({
@@ -225,7 +225,7 @@ describe('AsyncFlow', () => {
   });
 
   it('Should retry operation immediately after exception if onErrorPolicy is RETRY_FIRST', (done) => {
-    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: OnErrorPolicy.RETRY_FIRST});
+    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: {action: OnErrorAction.RETRY_FIRST}});
     let string = '';
     let step = 0;
     const errorMsg = 'Test Exception';
@@ -256,7 +256,7 @@ describe('AsyncFlow', () => {
   });
 
   it('Should retry operation in the end of que after exception if onErrorPolicy is RETRY_LAST', (done) => {
-    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: OnErrorPolicy.RETRY_LAST});
+    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: {action: OnErrorAction.RETRY_LAST}});
     let string = '';
     let step = 0;
     const errorMsg = 'Test Exception';
@@ -282,6 +282,34 @@ describe('AsyncFlow', () => {
       action: () => {
         string += 'c';
       }, interval: 50
+    }));
+    flow.start();
+  });
+
+  it('Should continue after exception if onErrorPolicy is CONTINUE', (done) => {
+    const flow = createAsyncFlow({name: 'flow', onErrorPolicy: {action: OnErrorAction.CONTINUE}});
+
+    flow.addFlowIsEmptyListener(() => {
+      expect(string).toBe('ac');
+      done();
+    });
+
+    let string = '';
+    const errorMsg = 'Test Exception';
+    flow.addTask(createTask({
+      action: () => {
+        string += 'a';
+      }, interval: 20
+    }));
+    flow.addTask(createTask({
+      action: () => {
+          throw errorMsg;
+      }
+    }));
+    flow.addTask(createTask({
+      action: () => {
+        string += 'c';
+      }, interval: 10
     }));
     flow.start();
   });
