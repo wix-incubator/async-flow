@@ -124,7 +124,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       task.state = AFTaskState.DONE;
 
       for (const onSuccess of task.onSuccess) {
-        onSuccess(result);
+        onSuccess({result, taskId: task.id});
       }
 
       if (_runningState === RunningState.STOPPED) {
@@ -147,7 +147,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       task.state = AFTaskState.ERROR;
 
       for (const onError of task.onError) {
-        onError(error);
+        onError({error, taskId: task.id});
       }
 
       if (_runningState === RunningState.STOPPED) {

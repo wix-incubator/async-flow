@@ -157,7 +157,7 @@ describe('AsyncFlow', () => {
     flow.addTask(createTask({
       action: () => {
         throw errorMsg;
-      }, interval: 10, onError: (error) => {
+      }, interval: 10, onError: ({error}) => {
         expect(error).toBe(errorMsg);
         done();
       }
