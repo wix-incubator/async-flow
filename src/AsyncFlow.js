@@ -170,13 +170,6 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         case OnErrorAction.PAUSE:
           _setRunningState(RunningState.PAUSED);
           break;
-        // case OnErrorAction.RETRY_FIRST:
-        //   _run();
-        //   break;
-        // case OnErrorAction.RETRY_LAST:
-        //   addTask(task);
-        //   _doNext();
-        //   break;
 
         case OnErrorAction.RETRY_FIRST:
         case OnErrorAction.RETRY_LAST:
