@@ -1,10 +1,18 @@
 const AFTaskModule = require('./AFTask');
 const AFTask = AFTaskModule.AFTask;
-const AFTaskState = AFTaskModule.AFTaskState;
-const AFTaskMerger = AFTaskModule.AFTaskMerger;
 
 const AFManagerModule = require('./AFManager');
 const createAFManager = AFManagerModule.createAFManager;
+
+const ConstantsModule = require('./AFConstants');
+const OnErrorAction = ConstantsModule.OnErrorAction;
+const RunningState = ConstantsModule.RunningState;
+const MergingPolicy = ConstantsModule.MergingPolicy;
+const AFTaskState = ConstantsModule.AFTaskState;
+const AFTaskMerger = ConstantsModule.AFTaskMerger;
+
+const UtilsModule = require('./AFUtils');
+
 
 function createAsyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   const flow = asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue});
@@ -14,31 +22,13 @@ function createAsyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initVal
   return flow;
 }
 
-const OnErrorAction = Object.freeze({
-  STOP: 0,
-  PAUSE: 1,
-  RETRY_FIRST: 2, // re add to head of _tasks
-  RETRY_LAST: 3,  // re add to tail of _tasks
-  CONTINUE: 4     // just run next task
-});
-
-const RunningState = Object.freeze({
-  PAUSED: 0,
-  RUNNING: 1,
-  STOPPED: 2,
-  GOING_TO_PAUSE: 3
-});
-
-const MergingPolicy = Object.freeze({
-  NONE: 0,
-  HEAD: 1,
-  TAIL: 2
-});
-
 function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   const _afManager = afManager;
   const _name = name;
+
   const _onErrorPolicy = onErrorPolicy !== undefined ? onErrorPolicy : {action: OnErrorAction.STOP};
+  UtilsModule.validateOnErrorPolicy(_onErrorPolicy);
+
   const _mergingPolicy = mergingPolicy !== undefined ? mergingPolicy : MergingPolicy.NONE;
 
   let _runningState = RunningState.PAUSED;
@@ -173,6 +163,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
         case OnErrorAction.RETRY_FIRST:
         case OnErrorAction.RETRY_LAST:
+        case OnErrorAction.RETRY_AFTER_PAUSE:
           _retry(task, errorPolicy);
           break;
 
@@ -206,9 +197,14 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       }
     } else {
       let delay = typeof errorPolicy.delay === 'function' ? errorPolicy.delay() : errorPolicy.delay;
-      _timeoutTaskCount++;
-      setTimeout(() => addTask(task, errorPolicy.action === OnErrorAction.RETRY_FIRST, true), delay);
-      _doNext();
+      if (errorPolicy.action === OnErrorAction.RETRY_AFTER_PAUSE) {
+        _setRunningState(RunningState.PAUSED);
+        setTimeout(start, delay);
+      } else {
+        _timeoutTaskCount++;
+        setTimeout(() => addTask(task, errorPolicy.action === OnErrorAction.RETRY_FIRST, true), delay);
+        _doNext();
+      }
     }
   }
 
@@ -334,9 +330,9 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   }
 
   function _notifyFlowIsEmptyListenersIfNeeded() {
-    if (_tasks.length === 0 && !_waitingStart && _timeoutTaskCount === 0) {
+    if (_tasks.length === 0 && !_waitingStart) {
       for (const listener of _flowIsEmptyListeners) {
-        listener({flowName: _name, result: _lastResult});
+        listener({flowName: _name, result: _lastResult, hasScheduledTasks: _timeoutTaskCount > 0});
       }
     }
   }

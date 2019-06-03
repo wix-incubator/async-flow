@@ -3,6 +3,7 @@ describe('AsyncFlow: OnErrorPolicy', () => {
   const createAsyncFlow = AsyncFlow.createAsyncFlow;
   const AFTask = AsyncFlow.AFTask;
   const OnErrorAction = AsyncFlow.OnErrorAction;
+  const RunningState = AsyncFlow.RunningState;
 
   class SymbolTask extends AFTask {
     constructor({symbol, interval, onSuccess, onError, onErrorPolicy, run}) {
@@ -176,9 +177,11 @@ describe('AsyncFlow: OnErrorPolicy', () => {
       }
     });
 
-    flow.addFlowIsEmptyListener(({result}) => {
-      expect(result).toBe('bca');
-      done();
+    flow.addFlowIsEmptyListener(({result, hasScheduledTasks}) => {
+      if (!hasScheduledTasks) {
+        expect(result).toBe('bca');
+        done();
+      }
     });
 
     let step = 0;
@@ -194,4 +197,38 @@ describe('AsyncFlow: OnErrorPolicy', () => {
     flow.addTask(new SymbolTask({symbol: 'c', interval: 20}));
     flow.start();
   });
+
+  it('Should try attempts times with delay  (RETRY_AFTER_DELAY, succeed)', async (done) => {
+    let delay = 30;
+    const flow = createAsyncFlow({
+      name: 'flow',
+      initValue: '',
+      onErrorPolicy: {
+        action: OnErrorAction.RETRY_AFTER_PAUSE, attempts: 3, delay: 50
+      }
+    });
+
+    flow.addFlowIsEmptyListener(({result, hasScheduledTasks}) => {
+      if (!hasScheduledTasks) {
+        expect(result).toBe('abc');
+        done();
+      }
+    });
+
+    let step = 0;
+    flow.addTask(new SymbolTask({
+      symbol: 'a', interval: 10, run: () => {
+        if (step === 0) {
+          step++;
+          throw 'Test Exception';
+        }
+      }
+    }));
+    flow.addTask(new SymbolTask({symbol: 'b', interval: 30}));
+    flow.addTask(new SymbolTask({symbol: 'c', interval: 20}));
+    flow.start();
+
+    setTimeout(() => {expect(flow.getRunningState()).toBe(RunningState.PAUSED)}, 30);
+  });
+
 });

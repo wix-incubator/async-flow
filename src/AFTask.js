@@ -1,15 +1,8 @@
-const AFTaskState = Object.freeze({
-  NONE: 0,
-  WAITING: 1,
-  RUNNING: 2,
-  DONE: 3,
-  ERROR: 4
-});
+const ConstantsModule = require('./AFConstants');
+const AFTaskState = ConstantsModule.AFTaskState;
+const AFTaskMerger = ConstantsModule.AFTaskMerger;
 
-const AFTaskMerger = Object.freeze({
-  NONE: 0,
-  BASIC: 1
-});
+const UtilsModule = require('./AFUtils');
 
 class AFTask {
 
@@ -28,6 +21,10 @@ class AFTask {
     }
 
     this._onErrorPolicy = onErrorPolicy;
+
+    if (onErrorPolicy !== undefined) {
+      UtilsModule.validateOnErrorPolicy(onErrorPolicy);
+    }
 
     this._merger = merger;
 
@@ -128,7 +125,5 @@ class AFTask {
 }
 
 module.exports = {
-  AFTask,
-  AFTaskState,
-  AFTaskMerger
+  AFTask
 };
