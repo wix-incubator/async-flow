@@ -2,7 +2,7 @@
 
 **async-flow** is an easy to use js module organizing multiple async tasks 
 in a queue to run them consistently, one in a time. It provides API to
-manage running state of queue, pass values from task to next task in que,
+manage running state of queue, pass values from task to next task in queue,
 handle errors, automatically rerun task if it needed, merge a new added
 task to existing one and so on.
 
@@ -53,8 +53,22 @@ console.log(flow.getCurrentValue());
 
 ## How to listen all tasks are done
 
+It can be added and removed a listener to get callback when flow is empty 
+(i.e. all tasks have been done).
+For that purpose AsyncFlow provides methods 
+*addFlowIsEmptyListener()* and *removeFlowIsEmptyListener()*.
 
+```javascript
+flow.addFlowIsEmptyListener(({result, hasScheduledTasks}) => {
+  if (!hasScheduledTasks) {
+    // Do something
+  }
+});
+```
 
+In this example *result* is a current value of flow,
+while *hasScheduleTasks* is a boolean that set to true if there are tasks
+scheduled to be re-added into queue after some error.
 
 ## onSuccess & onError callbacks
 
