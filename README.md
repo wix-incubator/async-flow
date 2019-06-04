@@ -1,8 +1,8 @@
 # async-flow
 
 **async-flow** is an easy to use js module organizing multiple async tasks 
-in a que to run them consistently, one in a time. It provides API to
-manage running state of que, pass values from task to next task in que,
+in a queue to run them consistently, one in a time. It provides API to
+manage running state of queue, pass values from task to next task in que,
 handle errors, automatically rerun task if it needed, merge a new added
 task to existing one and so on.
 
@@ -51,8 +51,8 @@ flow.addTask(new SymbolTask('c'));
 console.log(flow.getCurrentValue());
 ``` 
 
-
 ## How to listen all tasks are done
+
 
 
 
