@@ -72,7 +72,27 @@ scheduled to be re-added into queue after some error.
 
 ## onSuccess & onError callbacks
 
+It can be easily imagine that you want to do something if some task finished 
+successfully and something else in the case of error (i.e. execption).
+That is why you can pass to constructor of AFTask *onSuccess* and *onError* 
+callbacks, for example
 
+```javascript
+function onTaskSuccess({result, taskId}) {
+  
+}
+
+function onTaskError({error, taskId}) {
+  
+}
+
+flow.addTask(new AFTask({
+  func: myFunc,
+  id: 'myTask', 
+  onSuccess: onTaskSuccess, 
+  onError: onTaskError
+}))
+```
 
 ## RunningState
 
