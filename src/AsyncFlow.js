@@ -43,7 +43,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   let _canBeStarted = true;
   let _waitingStart = false;
 
-  let _lastResult = initValue;
+  let _currentValue = initValue;
 
   function getName() {
     return _name;
@@ -55,6 +55,10 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
   function getRunningState() {
     return _runningState;
+  }
+
+  function getCurrentValue() {
+    return _currentValue;
   }
 
   /*
@@ -108,8 +112,8 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       task.state = AFTaskState.RUNNING;
 
       _canBeStarted = false;
-      const result = await task.func(_lastResult);
-      _lastResult = result;
+      const result = await task.func(_currentValue);
+      _currentValue = result;
 
       task.state = AFTaskState.DONE;
 
@@ -332,7 +336,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   function _notifyFlowIsEmptyListenersIfNeeded() {
     if (_tasks.length === 0 && !_waitingStart) {
       for (const listener of _flowIsEmptyListeners) {
-        listener({flowName: _name, result: _lastResult, hasScheduledTasks: _timeoutTaskCount > 0});
+        listener({flowName: _name, result: _currentValue, hasScheduledTasks: _timeoutTaskCount > 0});
       }
     }
   }
@@ -342,6 +346,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     getName,
     getOnErrorPolicy,
     getRunningState,
+    getCurrentValue,
 
     addTask,
 
