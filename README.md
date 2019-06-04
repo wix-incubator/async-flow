@@ -96,7 +96,25 @@ flow.addTask(new AFTask({
 
 ## RunningState
 
+Just after creation a flow is in the RunningState.PAUSED that means 
+no any task is running. You can use method *start()* to run flow,
+method *pause()* to return it back to PAUSED state, method *stop()* to stop 
+a flow completely. 
 
+After *stop()* is called a flow can't be rerun and throws exception on
+any attempts to change its state.
+
+The current running state can be found with *getRunningState()* method,
+that returns one of RunningState values:
+
+```javascript
+const RunningState = Object.freeze({
+  PAUSED: 0,
+  RUNNING: 1,
+  STOPPED: 2,
+  GOING_TO_PAUSE: 3
+});
+```
 
 ## Errors handling
 
