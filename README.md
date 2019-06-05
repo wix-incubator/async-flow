@@ -19,8 +19,8 @@ flow.addTask(new AFTask({func: yourAsyncFunc2}));
 flow.addTask(new AFTask({func: yourAsyncFunc3}));
 flow.start();
 
-// a new task can be added to end of flow at every time 
-// and in every point od application 
+// a new task can be added to the end of flow at every time 
+// and in every point of application 
 
 flow.addTask(new AFTask({func: yourAsyncFunc4}));
 ```
@@ -140,12 +140,12 @@ where **action** is mandatory and can be
 
 ```javascript
 const OnErrorAction = Object.freeze({
-  STOP: 0,
-  PAUSE: 1,
-  RETRY_FIRST: 2, 
-  RETRY_LAST: 3,  
-  RETRY_AFTER_PAUSE: 4,
-  CONTINUE: 5     // just run next task
+  STOP: 0,              // flow will be stopped after exception 
+  PAUSE: 1,             // flow will be paused after exception
+  RETRY_FIRST: 2,       // flow will rerun a task that thrown exception, a task will be re-added into flow head
+  RETRY_LAST: 3,        // flow will rerun a task that thrown exception, a task will be re-added into flow tail
+  RETRY_AFTER_PAUSE: 4, // flow will be paused for a delay ms, and after that rerun a task
+  CONTINUE: 5           // flow just continue to run a next task    
 });
 
 ```
@@ -155,6 +155,26 @@ const OnErrorAction = Object.freeze({
 **delay** (delay in ms to rerun a task after exception) is also optional
 and makes sense for RETRY actions only. If it's absent it means that flow
 will retry immediately. 
+
+In the current implementation of RETRY actions a flow will be stopped if
+all retry attempts are not succeed.
+
+Here is a simple example:
+
+```javascript
+let delay = 100;
+const flow = createAsyncFlow({
+  name: 'flow',
+  initValue: '',
+  onErrorPolicy: {
+    action: OnErrorAction.RETRY_AFTER_PAUSE, attempts: 3, delay: () => {
+      delay *= 2;
+      return delay;
+    }
+  }
+});
+
+``` 
 
 ## Tasks merging
 
