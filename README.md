@@ -118,7 +118,43 @@ const RunningState = Object.freeze({
 
 ## Errors handling
 
+By default a flow interrupts its work by going to STOPPED state in the case 
+of exception thrown in the currently working task.
 
+But default behaviour can be changed using *onErrorPolicy* parameter. Please
+note that such a parameter can be passed to *createAsyncFlow()* function 
+as well as to constructor of AFTask. If both of them defined a task policy 
+has priority over flow policy.
+
+OnErrorPolicy object has a form:
+
+```javascript
+{
+  action: OnErrorAction,
+  attempts: number,
+  delay: number | function    
+}
+```
+
+where **action** is mandatory and can be
+
+```javascript
+const OnErrorAction = Object.freeze({
+  STOP: 0,
+  PAUSE: 1,
+  RETRY_FIRST: 2, 
+  RETRY_LAST: 3,  
+  RETRY_AFTER_PAUSE: 4,
+  CONTINUE: 5     // just run next task
+});
+
+```
+
+**attempts** (max attempts counter) is optional and by default is 1,
+
+**delay** (delay in ms to rerun a task after exception) is also optional
+and makes sense for RETRY actions only. If it's absent it means that flow
+will retry immediately. 
 
 ## Tasks merging
 
