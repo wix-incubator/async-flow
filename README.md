@@ -141,12 +141,18 @@ where **action** is mandatory and can be
 ```javascript
 const OnErrorAction = Object.freeze({
   STOP: 0,              // flow will be stopped after exception 
+  
   PAUSE: 1,             // flow will be paused after exception
+  
   RETRY_FIRST: 2,       // flow will rerun a task that thrown exception, 
                         // a task will be re-added into flow head
+                        
   RETRY_LAST: 3,        // flow will rerun a task that thrown exception, 
                         // a task will be re-added into flow tail
-  RETRY_AFTER_PAUSE: 4, // flow will be paused for a delay ms, and after that rerun a task
+                        
+  RETRY_AFTER_PAUSE: 4, // flow will be paused for a delay ms, 
+                        // and after that rerun a task
+  
   CONTINUE: 5           // flow just continue to run a next task    
 });
 

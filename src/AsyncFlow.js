@@ -62,11 +62,15 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   }
 
   /*
-    task : AFTask
+    task : AFTask | function
    */
   function addTask(task, intoHead, isDelayedTask) {
     if (_runningState === RunningState.STOPPED) {
       throw Error('Can\'t add task to stopped flow');
+    }
+
+    if (typeof task === 'function') {
+      task = new AFTask({func: task});
     }
 
     if (_mergingPolicy !== MergingPolicy.NONE && _tryToMergeTask(task)) {

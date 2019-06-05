@@ -303,7 +303,7 @@ describe('AsyncFlow', () => {
     }));
     flow.addTask(createTask({
       action: () => {
-          throw errorMsg;
+        throw errorMsg;
       }
     }));
     flow.addTask(createTask({
@@ -314,4 +314,28 @@ describe('AsyncFlow', () => {
     flow.start();
   });
 
-});
+  it('Add function as a task', async (done) => {
+    const flow = createAsyncFlow({name: 'flow'});
+
+    let string = '';
+
+    flow.addFlowIsEmptyListener(() => {
+      expect(string).toBe('abc');
+      done();
+    });
+
+    flow.addTask(async () => {
+      string += 'a';
+    });
+    flow.addTask(async () => {
+      string += 'b';
+    });
+    flow.addTask(async () => {
+      string += 'c';
+    });
+
+    flow.start();
+  });
+
+})
+;
