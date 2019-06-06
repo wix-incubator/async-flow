@@ -16,13 +16,19 @@ task to existing one and so on.
 const flow = createAsyncFlow({name: 'example'});
 flow.addTask(new AFTask({func: yourAsyncFunc1}));
 flow.addTask(new AFTask({func: yourAsyncFunc2}));
-flow.addTask(new AFTask({func: yourAsyncFunc3}));
 flow.start();
 
 // a new task can be added to the end of flow at every time 
 // and in every point of application 
 
-flow.addTask(new AFTask({func: yourAsyncFunc4}));
+flow.addTask(new AFTask({func: yourAsyncFunc3}));
+
+// if you don't want to customize task by passing onSuccess, onError
+// callbacks, onErrorPolicy etc. (see AFTask.constructor())
+// you can pass to addTask just a function
+
+flow.addTask(yourAsyncFunc4);
+
 ```
 
 ## It is possible to use result of one task in the next one
@@ -186,6 +192,86 @@ const flow = createAsyncFlow({
 
 ## Tasks merging
 
+In some cases you'd like don't add a new task if the same task is already
+waiting in a queue to be run, but you want just add a listeners to existing
+task. Or maybe you wish to replace existing task some way by merging it
+with a new task. For that purpose you can use a merging mechanism of AsyncFlow.
 
+Let's start from a very simple example:
+
+```javascript
+class SymbolTask extends AFTask {
+  constructor({symbol}) {
+    super({
+      func: async (string) => {
+        return string + symbol;
+      }, 
+      merger: AFTaskMerger.BASIC
+    });
+    
+    this.symbol = symbol;
+  }
+  
+  isTaskEqual(task) {
+    return this.symbol === task.symbol;
+  }
+}
+
+// we create flow that supports merging
+const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.HEAD});
+
+flow.addFlowIsEmptyListener(({result}) => {
+  console.log(result);
+  // it logs 'abc' because last added task is merged by existing one
+});
+
+
+flow.addTask(new SymbolTask({symbol: 'a'}));
+flow.addTask(new SymbolTask({symbol: 'b'})); 
+flow.addTask(new SymbolTask({symbol: 'c'}));
+flow.addTask(new SymbolTask({symbol: 'b'}));
+flow.start();
+```
+
+First of all we need to create AsyncFlow that supports merging by passing
+not NONE (default) merging policy to createAsyncFlow() method. It can be
+
+```javascript
+const MergingPolicy = Object.freeze({
+  NONE: 0, // merging is off
+  HEAD: 1, // looking for task to merge to from the head of queue
+  TAIL: 2  // try to merge to last task in the queue only
+});
+```
+
+Both tasks we are merging together should support merging; it means they have
+to get a not NONE merger as a constructor parameter. In the current version of
+AsyncFlow it can be either AFTaskMerger.BASIC or some custom method taking
+a task as a parameter and returning a merging task as a result.
+
+A BASIC merger as in example above just ignore a new added task if equal task 
+(see method isTaksEqual() in example code) is already exists in queue. It also
+adds onSuccess and onError of a new task to existing one.
 
 ## AFManager
+
+AFManager provides a method to resolve created AsyncFlow by its name.
+For example:
+
+```javascript
+global.afManager = createAFManager();
+
+createAsyncFlow({name: 'flow1', afManager});
+
+createAsyncFlow({name: 'flow2', afManager});
+
+```
+
+Now you can easily get flow1 and flow2 from any part of your application:
+
+```javascript
+const flow = global.afManager.resolve('flow1');
+```
+ 
+Please note that it's not possible to add to the same AFManager a second 
+AsyncFlow of the same name. AFManager throws in that case an error.
