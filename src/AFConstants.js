@@ -33,11 +33,20 @@ const AFTaskMerger = Object.freeze({
   BASIC: 1
 });
 
+const AFTaskPriority = Object.freeze({
+  HIGHEST: 0,
+  HIGH: 64,
+  NORMAL: 128,
+  LOW: 192,
+  LOWEST: 255
+});
+
 module.exports = {
   OnErrorAction,
   RunningState,
   MergingPolicy,
 
   AFTaskState,
-  AFTaskMerger
+  AFTaskMerger,
+  AFTaskPriority
 };

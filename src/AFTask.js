@@ -6,7 +6,7 @@ const UtilsModule = require('./AFUtils');
 
 class AFTask {
 
-  constructor({id, func, onSuccess, onError, onErrorPolicy, merger}) {
+  constructor({id, func, onSuccess, onError, onErrorPolicy, merger, priority}) {
     this._id = id;
     this._func = func;
 
@@ -27,6 +27,8 @@ class AFTask {
     }
 
     this._merger = merger;
+
+    this._priority = priority;
 
     this._state = AFTaskState.NONE;
 
@@ -121,6 +123,10 @@ class AFTask {
   // noinspection JSUnusedGlobalSymbols
   set state(value) {
     this._state = value;
+  }
+
+  get priority() {
+    return this._priority;
   }
 }
 
