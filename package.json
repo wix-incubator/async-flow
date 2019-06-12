@@ -1,17 +1,26 @@
 {
-  "name": "async-flow",
+  "name": "one-more-async-flow",
   "version": "1.0.0",
   "description": "",
   "main": "src/AsyncFlow.js",
   "scripts": {
     "test": "jest"
   },
-  "keywords": [],
+  "keywords": [
+    "async",
+    "flow",
+    "queue",
+    "task"
+  ],
   "author": {
     "name": "Evgeni Silman",
     "email": "evgenis@wix.com"
   },
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wix-incubator/async-flow.git"
+  },
   "devDependencies": {
     "@babel/core": "7.4.3",
     "@babel/runtime": "7.4.3",
