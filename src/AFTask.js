@@ -8,7 +8,12 @@ class AFTask {
 
   constructor({id, func, onSuccess, onError, onErrorPolicy, merger}) {
     this._id = id;
-    this._func = func;
+
+    if (func) {
+      this._func = func;
+    } else {
+      this._func = this.taskFunc;
+    }
 
     this._onSuccess = new Set();
     if (onSuccess) {
@@ -34,6 +39,13 @@ class AFTask {
     this.mergeListeners = this.mergeListeners.bind(this);
     this.isTaskEqual = this.isTaskEqual.bind(this);
     this._basicMerge = this._basicMerge.bind(this);
+
+    this.taskFunc = this.taskFunc.bind(this);
+  }
+
+  // noinspection JSMethodCanBeStatic
+  async taskFunc() {
+    throw 'task function is not defined';
   }
 
   /**
