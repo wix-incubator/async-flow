@@ -1,6 +1,7 @@
 const ConstantsModule = require('./AFConstants');
 const AFTaskState = ConstantsModule.AFTaskState;
 const AFTaskMerger = ConstantsModule.AFTaskMerger;
+const AFTaskPriority = ConstantsModule.AFTaskPriority;
 
 const UtilsModule = require('./AFUtils');
 
@@ -28,7 +29,7 @@ class AFTask {
 
     this._merger = merger;
 
-    this._priority = priority;
+    this._priority = priority !== undefined ? priority : AFTaskPriority.NORMAL;
 
     this._state = AFTaskState.NONE;
 
