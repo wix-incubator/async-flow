@@ -6,7 +6,7 @@ const UtilsModule = require('./AFUtils');
 
 class AFTask {
 
-  constructor({id, func, onSuccess, onError, onErrorPolicy, merger}) {
+  constructor({id, func, onSuccess, onError, onErrorPolicy, merger, repeatingInterval}) {
     this._id = id;
 
     if (func) {
@@ -32,6 +32,8 @@ class AFTask {
     }
 
     this._merger = merger;
+
+    this._repeatingInterval = repeatingInterval;
 
     this._state = AFTaskState.NONE;
 
@@ -134,6 +136,11 @@ class AFTask {
   set state(value) {
     this._state = value;
   }
+
+  get repeatingInterval() {
+    return this._repeatingInterval;
+  }
+
 }
 
 module.exports = {

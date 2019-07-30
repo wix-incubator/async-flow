@@ -38,6 +38,9 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   const _runningStateListeners = new Set(); // a listener is a function: (runningState, flowName) => {}
   const _flowIsEmptyListeners = new Set();
 
+  const _stateListenerItems = [];
+  let _flowState = {};
+
   let _timeoutTaskCount = 0;
 
   let _canBeStarted = true;
@@ -61,6 +64,14 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     return _currentValue;
   }
 
+  function getFlowState() {
+    return _flowState;
+  }
+
+  function setFlowState(state) {
+    _flowState = state;
+  }
+
   /*
     task : AFTask | function
    */
@@ -73,12 +84,16 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       task = new AFTask({func: task});
     }
 
-    if (_mergingPolicy !== MergingPolicy.NONE && _tryToMergeTask(task)) {
+    if (isDelayedTask) {
+      _timeoutTaskCount--;
+    }
+
+    if (task.state === AFTaskState.CANCELED) {
       return;
     }
 
-    if (isDelayedTask) {
-      _timeoutTaskCount--;
+    if (_mergingPolicy !== MergingPolicy.NONE && _tryToMergeTask(task)) {
+      return;
     }
 
     task.state = AFTaskState.WAITING;
@@ -95,6 +110,86 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
     if (_tasks.length === 1 && _runningState === RunningState.RUNNING) {
       _run();
+    }
+  }
+
+  // TODO: maybe we need return more precise value?
+  // Something like:
+  //    not found
+  //    can't be deleted
+  //    deleted
+  function cancelTask(task) {
+    if (task.state === AFTaskState.RUNNING) {
+      return false;
+    }
+
+    task.state = AFTaskState.CANCELED;
+
+    for (let i = 0; i < _tasks.length; i++) {
+      if (task === _tasks[i]) {
+        _tasks.splice(i, 1);
+        break;
+      }
+    }
+
+    return true;
+  }
+
+  // predicate: (state) => {} : boolean | {result: boolean, data: object}
+  function addStateListener(predicate, listener) {
+    _stateListenerItems.push({
+      predicate,
+      listener
+    });
+  }
+
+  function removeStateListener(listener) {
+    let index = -1;
+    for (let i = 0; i < _stateListenerItems.length; i++) {
+      const listenerItem = _stateListenerItems[i];
+      if (listenerItem.listener === listener) {
+        index = i;
+        break;
+      }
+    }
+
+    _stateListenerItems.splice(index, 1);
+  }
+
+  function promiseForState(predicate) {
+    let promiseCallbacks = {};
+
+    const promise = new Promise((res, rej) => {
+      promiseCallbacks.resolve = res;
+      promiseCallbacks.reject = rej;
+    });
+
+    _stateListenerItems.push({
+      predicate,
+      promiseCallbacks
+    });
+
+    return promise;
+  }
+
+  function _notifyStateListeners() {
+    for (let i = 0; i < _stateListenerItems.length;) {
+      const stateListenerItem = _stateListenerItems[i];
+      const predicateResult = stateListenerItem.predicate(_flowState);
+      if (predicateResult === true || predicateResult.result === true) {
+        if (stateListenerItem.listener) {
+          stateListenerItem.listener({state: _flowState, data: predicateResult.data});
+          i++;
+        } else {
+          _stateListenerItems.splice(i, 1);
+          const resolve = stateListenerItem.promiseCallbacks.resolve;
+          if (resolve) {
+            resolve({state: _flowState, data: predicateResult.data});
+          }
+        }
+      } else {
+        i++;
+      }
     }
   }
 
@@ -133,6 +228,10 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         _setRunningState(RunningState.PAUSED);
       }
 
+      _notifyStateListeners();
+
+      _rescheduleIfNeeded(task);
+
       _doNext();
       _canBeStarted = true;
 
@@ -147,6 +246,8 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       for (const onError of task.onError) {
         onError({error, taskId: task.id});
       }
+
+      _notifyStateListeners();
 
       if (_runningState === RunningState.STOPPED) {
         return;
@@ -262,6 +363,18 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     return false;
   }
 
+  function _rescheduleIfNeeded(task) {
+    const interval = task.repeatingInterval;
+    if (interval === undefined) {
+      return;
+    }
+
+    const intervalValue = parseInt(typeof interval === 'function' ? interval() : interval);
+
+    _timeoutTaskCount++;
+    setTimeout(() => addTask(task, false, true), intervalValue);
+  }
+
   function start() {
     if (!_canBeStarted) {
       _waitingStart = true;
@@ -345,6 +458,10 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     }
   }
 
+  function hasScheduledTasks() {
+    return _timeoutTaskCount > 0;
+  }
+
   // noinspection JSUnusedGlobalSymbols
   return {
     getName,
@@ -353,6 +470,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     getCurrentValue,
 
     addTask,
+    cancelTask,
 
     start,
     stop,
@@ -365,7 +483,16 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     length,
 
     addFlowIsEmptyListener,
-    removeFlowIsEmptyListener
+    removeFlowIsEmptyListener,
+
+    addStateListener,
+    removeStateListener,
+    promiseForState,
+
+    getFlowState,
+    setFlowState,
+
+    hasScheduledTasks
   }
 }
 
