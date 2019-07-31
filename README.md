@@ -190,6 +190,68 @@ const flow = createAsyncFlow({
 
 ``` 
 
+## Repeating tasks
+
+If you need to schedule repeating task you can pass to repeatingInterval into 
+task constructor:
+
+```javascript
+const task = new IncTask({repeatingInterval: 20});
+```
+
+Please note that repeatingInterval defines interval in MS between 
+successfully finish of task and the time when this task will be re-added 
+to flow queue.
+
+## How to cancel task
+
+A task can be cancelled by *AsyncFlow.cancel(task)* method call.
+
+## Flow state
+
+Sometimes you'd like to be notified about some specific state change in our flow.
+Maybe you got extremal value from a sensor? Or important data from server?
+Or there were a lot of errors during flow work, and you need to care about it?
+
+For that reason there is a flow state listening mechanism of AsyncFlow.
+Every flow has internal object _flowState, that can be read by *getFlowState()*
+call and set by *setFlowState(newState)* call. 
+
+You can add state listener to be notified about some specific condition is true:
+
+```javascript
+flow.addStateListener(predicate, listener);
+```
+
+where **predicate** is a function receiving state parameter and returning 
+boolean or object
+```javascript
+{
+  result: boolean,
+  data: object
+}
+```
+
+and **listener** is a function receiving {state, data} as a parameter.
+For example:
+
+```javascript
+flow.addStateListener((state) => state.a > 2, ({state}) => {
+  console.log(`state.a = ${state.a}`);
+});
+```
+
+In this example listener will be called when state.a > 2. Please note that AsyncFlow notifies 
+state listeners between tasks; not at the setState() call. 
+Every state listener will be called (if predicate is true) until it removed from AsyncFlow
+by *removeStateListener(listener)* call.
+
+You can also use await syntax to wait for a specific state condition. Just call *promiseForState()*, for example
+
+```javascript
+const {state} = await flow.promiseForState((state) => state.a > 2);
+```
+
 ## Tasks merging
 
 In some cases you'd like don't add a new task if the same task is already
