@@ -20,6 +20,12 @@ const MergingPolicy = Object.freeze({
   TAIL: 2
 });
 
+const StateProjJump = Object.freeze({
+  FT: 0,
+  TF: 1,
+  TT: 2
+});
+
 const AFTaskState = Object.freeze({
   NONE: 0,
   WAITING: 1,
@@ -38,6 +44,7 @@ module.exports = {
   OnErrorAction,
   RunningState,
   MergingPolicy,
+  StateProjJump,
 
   AFTaskState,
   AFTaskMerger
