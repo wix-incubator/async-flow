@@ -22,10 +22,13 @@ describe('AsyncFlow: FlowState', () => {
   it('Should call state listener', async (done) => {
     const flow = createAsyncFlow({name: 'flow'});
 
-    flow.addStateListener((state) => state.a > 2, ({state}) => {
+    const listener = ({state}) => {
+      flow.removeStateListener(listener);
       expect(state.a).toBe(3);
       done();
-    });
+    };
+
+    flow.addStateListener((state) => state.a > 2, listener);
 
     flow.start();
 

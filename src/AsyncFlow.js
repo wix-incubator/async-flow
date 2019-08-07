@@ -8,8 +8,11 @@ const ConstantsModule = require('./AFConstants');
 const OnErrorAction = ConstantsModule.OnErrorAction;
 const RunningState = ConstantsModule.RunningState;
 const MergingPolicy = ConstantsModule.MergingPolicy;
+const StateProjJump = ConstantsModule.StateProjJump;
 const AFTaskState = ConstantsModule.AFTaskState;
 const AFTaskMerger = ConstantsModule.AFTaskMerger;
+
+const _ = require('lodash');
 
 const UtilsModule = require('./AFUtils');
 
@@ -40,6 +43,17 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
   const _stateListenerItems = [];
   let _flowState = {};
+
+
+  /*
+    projStateListenerItem:
+
+      projection
+      predicate
+      listener
+      lastProjValue
+   */
+  const _stateProjListenerItems = [];
 
   let _timeoutTaskCount = 0;
 
@@ -143,17 +157,20 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     });
   }
 
-  function removeStateListener(listener) {
+  function _removeFromArray(array, attribute, attributeValue) {
     let index = -1;
-    for (let i = 0; i < _stateListenerItems.length; i++) {
-      const listenerItem = _stateListenerItems[i];
-      if (listenerItem.listener === listener) {
+    for (let i = 0; i < array.length; i++) {
+      if (array[i][attribute] === attributeValue) {
         index = i;
         break;
       }
     }
 
-    _stateListenerItems.splice(index, 1);
+    array.splice(index, 1);
+  }
+
+  function removeStateListener(listener) {
+    _removeFromArray(_stateListenerItems, 'listener', listener);
   }
 
   function promiseForState(predicate) {
@@ -175,22 +192,69 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   function _notifyStateListeners() {
     for (let i = 0; i < _stateListenerItems.length;) {
       const stateListenerItem = _stateListenerItems[i];
-      const predicateResult = stateListenerItem.predicate(_flowState);
-      if (predicateResult === true || predicateResult.result === true) {
+      const predicateValue = stateListenerItem.predicate(_flowState);
+      if (predicateValue === true || predicateValue.result === true) {
         if (stateListenerItem.listener) {
-          stateListenerItem.listener({state: _flowState, data: predicateResult.data});
+          stateListenerItem.listener({state: _flowState, data: predicateValue.data});
           i++;
         } else {
           _stateListenerItems.splice(i, 1);
           const resolve = stateListenerItem.promiseCallbacks.resolve;
           if (resolve) {
-            resolve({state: _flowState, data: predicateResult.data});
+            resolve({state: _flowState, data: predicateValue.data});
           }
         }
       } else {
         i++;
       }
     }
+  }
+
+  // projection: (state) => projectionValue
+  // predicate: (projectionValue) => {} : boolean | {result: boolean, data: object}
+  function addStateProjListener(projection, predicate, listener, flags) {
+    if (flags === undefined) {
+      flags = 0;
+    }
+
+    _stateProjListenerItems.push({
+      projection,
+      predicate,
+      listener,
+      flags,
+      lastProjValue: undefined,
+      lastPredicateResult: false
+    });
+  }
+
+  function removeStateProjListener(listener) {
+    _removeFromArray(_stateProjListenerItems, 'listener', listener);
+  }
+
+  function _notifyStateProjListeners() {
+    for (const item of _stateProjListenerItems) {
+      const projValue = item.projection(_flowState);
+      if (!_.isEqual(projValue, item.lastProjValue)) {
+        item.lastProjValue = projValue;
+        const predicateValue = item.predicate(projValue);
+        const predicateResult = _predicateResult(predicateValue);
+
+        const ft = !item.lastPredicateResult && predicateResult;
+        const tt = (item.flags & StateProjJump.TT) && item.lastPredicateResult && predicateResult;
+        const tf = (item.flags & StateProjJump.TF) && item.lastPredicateResult && !predicateResult;
+
+        if (ft || tt || tf) {
+          const jump = (ft ? StateProjJump.FT : 0) | (tt ? StateProjJump.TT : 0) | (tf ? StateProjJump.TF : 0);
+          item.listener({state: _flowState, data: predicateValue.data, jump});
+        }
+
+        item.lastPredicateResult = predicateResult;
+      }
+    }
+  }
+
+  function _predicateResult(predicateValue) {
+    return predicateValue === true || (predicateValue !== undefined && predicateValue.result === true);
   }
 
   function _doNext() {
@@ -229,6 +293,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       }
 
       _notifyStateListeners();
+      _notifyStateProjListeners();
 
       _rescheduleIfNeeded(task);
 
@@ -248,6 +313,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       }
 
       _notifyStateListeners();
+      _notifyStateProjListeners();
 
       if (_runningState === RunningState.STOPPED) {
         return;
@@ -489,6 +555,9 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     removeStateListener,
     promiseForState,
 
+    addStateProjListener,
+    removeStateProjListener,
+
     getFlowState,
     setFlowState,
 
@@ -501,6 +570,7 @@ module.exports = {
   OnErrorAction,
   RunningState,
   MergingPolicy,
+  StateProjJump,
 
   AFTask,
   AFTaskState,

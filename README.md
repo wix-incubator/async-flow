@@ -252,6 +252,58 @@ You can also use await syntax to wait for a specific state condition. Just call 
 const {state} = await flow.promiseForState((state) => state.a > 2);
 ```
 
+## Flow state projection
+
+Though you can follow flow state with state listeners that described above,
+there is one additional special mechanism in AsyncFlow. Just imagine you want
+to be notified when some state based function (we will name it *state projection* 
+or just *projection*) passes threshold.
+
+![State Projection](state_projection.png)
+
+This figure gives us an example of some state projection value evolution over time.
+The projection threshold is set by predicate function that separates all the 
+area of projection values into two parts: True-area and False-area. We definitely
+want to know when projection will exceed threshold, i.e. there will be transition
+from False to True-area (FT).
+Sometimes we'd like to know also about back transition from True to False-area (TF).
+At last maybe we need to be notified on every projection value change while it
+happens in True-area.
+
+AsyncFlow provides method
+```javascript
+addStateProjListener(projection, predicate, listener, flags)
+``` 
+
+where **projection** is a function receiving flow state as a parameter and returning
+some projectionValue,
+
+**predicate** is a function receiving projectionValue parameter and returning boolean or object
+```javascript 
+{
+    result: boolean,
+    data: object
+}
+```
+                 
+**listener** is a function receiving {state, data} as a parameter,
+
+and **flags** is optional and describes if a listener will be called on True->True
+and True->False moves. It can be constructed using *AsyncFlow.StateProjJump.TT* and
+*AsyncFlow.StateProjJump.TF* constants, as we see in the code example below:
+
+```javascript
+flow.addStateProjListener(
+  (state) => state.a,
+  (a) => a > 2,
+  listener,
+  AsyncFlow.StateProjJump.TT | AsyncFlow.StateProjJump.TF);
+```
+
+The listener will be called on every FT, TT and TF change of projection.
+The projection is evaluated as *state.a*, and predicate receives this projection
+value and returns *a > 2*.
+
 ## Tasks merging
 
 In some cases you'd like don't add a new task if the same task is already
