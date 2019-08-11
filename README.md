@@ -192,16 +192,15 @@ const flow = createAsyncFlow({
 
 ## Repeating tasks
 
-If you need to schedule repeating task you can pass to repeatingInterval into 
+If you need to schedule repeating task you can pass repeatingInterval to 
 task constructor:
 
 ```javascript
 const task = new IncTask({repeatingInterval: 20});
 ```
 
-Please note that repeatingInterval defines interval in MS between 
-successfully finish of task and the time when this task will be re-added 
-to flow queue.
+Please note that repeatingInterval defines interval in MS between task
+finish time and the time when this task will be re-added to flow queue.
 
 ## How to cancel task
 
@@ -209,7 +208,7 @@ A task can be cancelled by *AsyncFlow.cancel(task)* method call.
 
 ## Flow state
 
-Sometimes you'd like to be notified about some specific state change in our flow.
+Sometimes you'd like to be notified about some specific state change in the flow.
 Maybe you got extremal value from a sensor? Or important data from server?
 Or there were a lot of errors during flow work, and you need to care about it?
 
@@ -363,8 +362,8 @@ to get a not NONE merger as a constructor parameter. In the current version of
 AsyncFlow it can be either AFTaskMerger.BASIC or some custom method taking
 a task as a parameter and returning a merging task as a result.
 
-A BASIC merger as in example above just ignore a new added task if equal task 
-(see method isTaksEqual() in example code) is already exists in queue. It also
+A BASIC merger as in example above just ignores a new added task if equal task 
+(see method *isTaksEqual()* in example code) is already exists in queue. It also
 adds onSuccess and onError of a new task to existing one.
 
 ## AFManager
