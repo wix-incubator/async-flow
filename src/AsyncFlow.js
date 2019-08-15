@@ -421,17 +421,8 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
   function _tryToMergeHead(task) {
     for (let i = 0; i < _tasks.length; i++) {
-      const t = _tasks[i];
-      if (t.isMergeable()) {
-        const mergedTask = t.merge(task);
-        if (mergedTask) {
-          if (mergedTask.priority === _tasks[i].priority) {
-            _tasks[i] = mergedTask;
-          } else {
-            _tasks.splice(i, 1);
-            const index = _findIndexToAdd(task, true);
-            _tasks.splice(index, 0, task);
-          }
+      if (_tasks[i].isMergeable()) {
+        if (_mergeTask(i, task)) {
           return true;
         }
       }
@@ -442,25 +433,30 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
   function _tryToMergeTail(task) {
     for (let i = _tasks.length - 1; i >= 0; i--) {
-      const t = _tasks[i];
-      if (t.isMergeable()) {
-        const mergedTask = t.merge(task);
-        if (mergedTask) {
-          if (mergedTask.priority === _tasks[i].priority) {
-            _tasks[i] = mergedTask;
-          } else {
-            _tasks.splice(i, 1);
-            const index = _findIndexToAdd(task, true);
-            _tasks.splice(index, 0, task);
-          }
-          return true;
-        } else {
-          return false;
-        }
+      if (_tasks[i].isMergeable()) {
+        return _mergeTask(i, task);
       }
     }
 
     return false;
+  }
+
+  function _mergeTask(indexOfExistingTask, newTask) {
+    const existingTask = _tasks[indexOfExistingTask];
+    const originalPriority = existingTask.priority;
+    const mergedTask = existingTask.merge(newTask);
+    if (mergedTask) {
+      if (mergedTask.priority === originalPriority) {
+        _tasks[indexOfExistingTask] = mergedTask;
+      } else {
+        _tasks.splice(indexOfExistingTask, 1);
+        const index = _findIndexToAdd(newTask, true);
+        _tasks.splice(index, 0, newTask);
+      }
+      return true;
+    } else {
+      return false;
+    }
   }
 
   function _rescheduleIfNeeded(task) {
