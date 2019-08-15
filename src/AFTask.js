@@ -7,9 +7,14 @@ const UtilsModule = require('./AFUtils');
 
 class AFTask {
 
-  constructor({id, func, onSuccess, onError, onErrorPolicy, merger, priority}) {
+  constructor({id, func, onSuccess, onError, onErrorPolicy, merger, repeatingInterval, priority}) {
     this._id = id;
-    this._func = func;
+
+    if (func) {
+      this._func = func;
+    } else {
+      this._func = this.taskFunc;
+    }
 
     this._onSuccess = new Set();
     if (onSuccess) {
@@ -29,14 +34,24 @@ class AFTask {
 
     this._merger = merger;
 
+    this._repeatingInterval = repeatingInterval;
+
     this._priority = priority !== undefined ? priority : AFTaskPriority.NORMAL;
 
     this._state = AFTaskState.NONE;
 
     this.merge = this.merge.bind(this);
     this.mergeListeners = this.mergeListeners.bind(this);
+    this.mergePriority = this.mergePriority.bind(this);
     this.isTaskEqual = this.isTaskEqual.bind(this);
     this._basicMerge = this._basicMerge.bind(this);
+
+    this.taskFunc = this.taskFunc.bind(this);
+  }
+
+  // noinspection JSMethodCanBeStatic
+  async taskFunc() {
+    throw 'task function is not defined';
   }
 
   /**
@@ -77,7 +92,7 @@ class AFTask {
       return false;
     }
 
-    return this.mergeListeners(task);
+    return this.mergeListeners(task).mergePriority(task);
   }
 
   mergeListeners(...tasks) {
@@ -89,6 +104,17 @@ class AFTask {
         this.onError.add(onError);
       }
     }
+    return this;
+  }
+
+  mergePriority(...tasks) {
+    let priority = this._priority;
+    for (const task of tasks) {
+      if (task.priority < priority) {
+        priority = task.priority;
+      }
+    }
+    this._priority = priority;
     return this;
   }
 
@@ -126,8 +152,16 @@ class AFTask {
     this._state = value;
   }
 
+  getRepeatingInterval() {
+    return UtilsModule.getMaybeFuncValue(this._repeatingInterval);
+  }
+
   get priority() {
     return this._priority;
+  }
+
+  set priority(value) {
+    this._priority = value;
   }
 }
 

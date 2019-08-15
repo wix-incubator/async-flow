@@ -7,6 +7,11 @@ function validateOnErrorPolicy(onErrorPolicy) {
   }
 }
 
+function getMaybeFuncValue(value) {
+  return typeof value === 'function' ? value() : value;
+}
+
 module.exports = {
-  validateOnErrorPolicy
+  validateOnErrorPolicy,
+  getMaybeFuncValue
 };

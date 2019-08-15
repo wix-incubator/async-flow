@@ -8,8 +8,11 @@ const ConstantsModule = require('./AFConstants');
 const OnErrorAction = ConstantsModule.OnErrorAction;
 const RunningState = ConstantsModule.RunningState;
 const MergingPolicy = ConstantsModule.MergingPolicy;
+const StateProjJump = ConstantsModule.StateProjJump;
 const AFTaskState = ConstantsModule.AFTaskState;
 const AFTaskMerger = ConstantsModule.AFTaskMerger;
+
+const _ = require('lodash');
 
 const UtilsModule = require('./AFUtils');
 
@@ -38,6 +41,20 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   const _runningStateListeners = new Set(); // a listener is a function: (runningState, flowName) => {}
   const _flowIsEmptyListeners = new Set();
 
+  const _stateListenerItems = [];
+  let _flowState = {};
+
+
+  /*
+    projStateListenerItem:
+
+      projection
+      predicate
+      listener
+      lastProjValue
+   */
+  const _stateProjListenerItems = [];
+
   let _timeoutTaskCount = 0;
 
   let _canBeStarted = true;
@@ -61,6 +78,14 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     return _currentValue;
   }
 
+  function getFlowState() {
+    return _flowState;
+  }
+
+  function setFlowState(state) {
+    _flowState = state;
+  }
+
   /*
     task : AFTask | function
    */
@@ -73,29 +98,186 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       task = new AFTask({func: task});
     }
 
-    if (_mergingPolicy !== MergingPolicy.NONE && _tryToMergeTask(task)) {
-      return;
-    }
-
     if (isDelayedTask) {
       _timeoutTaskCount--;
     }
 
+    if (task.state === AFTaskState.CANCELED) {
+      return;
+    }
+
+    if (_mergingPolicy !== MergingPolicy.NONE && _tryToMergeTask(task)) {
+      return;
+    }
+
     task.state = AFTaskState.WAITING;
 
-    if (intoHead) {
-      if (_tasks.length === 0) {
-        _tasks.push(task);
-      } else {
-        _tasks.splice(1, 0, task);
-      }
-    } else {
-      _tasks.push(task);
-    }
+    const index = _findIndexToAdd(task, intoHead);
+    _tasks.splice(index, 0, task);
 
     if (_tasks.length === 1 && _runningState === RunningState.RUNNING) {
       _run();
     }
+  }
+
+  function _findIndexToAdd(task, intoHead) {
+    return intoHead ? _findIndexToAddHead(task) : _findIndexToAddTail(task);
+  }
+
+  function _findIndexToAddTail(task) {
+    let index = 0;
+
+    for (let i = _tasks.length - 1; i >= 0; i--) {
+      if (task.priority >= _tasks[i].priority || _tasks[i].state === AFTaskState.RUNNING) {
+        index = i + 1;
+        break;
+      }
+    }
+
+    return index;
+  }
+
+  function _findIndexToAddHead(task) {
+    let index = _tasks.length;
+
+    for (let i = 0; i < _tasks.length; i++) {
+      if (task.priority <= _tasks[i].priority && _tasks[i].state !== AFTaskState.RUNNING) {
+        index = i;
+        break;
+      }
+    }
+
+    return index;
+  }
+
+  // TODO: maybe we need return more precise value?
+  // Something like:
+  //    not found
+  //    can't be deleted
+  //    deleted
+  function cancelTask(task) {
+    if (task.state === AFTaskState.RUNNING) {
+      return false;
+    }
+
+    task.state = AFTaskState.CANCELED;
+
+    for (let i = 0; i < _tasks.length; i++) {
+      if (task === _tasks[i]) {
+        _tasks.splice(i, 1);
+        break;
+      }
+    }
+
+    return true;
+  }
+
+  // predicate: (state) => {} : boolean | {result: boolean, data: object}
+  function addStateListener(predicate, listener) {
+    _stateListenerItems.push({
+      predicate,
+      listener
+    });
+  }
+
+  function _removeFromArray(array, attribute, attributeValue) {
+    let index = -1;
+    for (let i = 0; i < array.length; i++) {
+      if (array[i][attribute] === attributeValue) {
+        index = i;
+        break;
+      }
+    }
+
+    array.splice(index, 1);
+  }
+
+  function removeStateListener(listener) {
+    _removeFromArray(_stateListenerItems, 'listener', listener);
+  }
+
+  function promiseForState(predicate) {
+    let promiseCallbacks = {};
+
+    const promise = new Promise((res, rej) => {
+      promiseCallbacks.resolve = res;
+      promiseCallbacks.reject = rej;
+    });
+
+    _stateListenerItems.push({
+      predicate,
+      promiseCallbacks
+    });
+
+    return promise;
+  }
+
+  function _notifyStateListeners() {
+    for (let i = 0; i < _stateListenerItems.length;) {
+      const stateListenerItem = _stateListenerItems[i];
+      const predicateValue = stateListenerItem.predicate(_flowState);
+      if (predicateValue === true || predicateValue.result === true) {
+        if (stateListenerItem.listener) {
+          stateListenerItem.listener({state: _flowState, data: predicateValue.data});
+          i++;
+        } else {
+          _stateListenerItems.splice(i, 1);
+          const resolve = stateListenerItem.promiseCallbacks.resolve;
+          if (resolve) {
+            resolve({state: _flowState, data: predicateValue.data});
+          }
+        }
+      } else {
+        i++;
+      }
+    }
+  }
+
+  // projection: (state) => projectionValue
+  // predicate: (projectionValue) => {} : boolean | {result: boolean, data: object}
+  function addStateProjListener(projection, predicate, listener, flags) {
+    if (flags === undefined) {
+      flags = 0;
+    }
+
+    _stateProjListenerItems.push({
+      projection,
+      predicate,
+      listener,
+      flags,
+      lastProjValue: undefined,
+      lastPredicateResult: false
+    });
+  }
+
+  function removeStateProjListener(listener) {
+    _removeFromArray(_stateProjListenerItems, 'listener', listener);
+  }
+
+  function _notifyStateProjListeners() {
+    for (const item of _stateProjListenerItems) {
+      const projValue = item.projection(_flowState);
+      if (!_.isEqual(projValue, item.lastProjValue)) {
+        item.lastProjValue = projValue;
+        const predicateValue = item.predicate(projValue);
+        const predicateResult = _predicateResult(predicateValue);
+
+        const ft = !item.lastPredicateResult && predicateResult;
+        const tt = (item.flags & StateProjJump.TT) && item.lastPredicateResult && predicateResult;
+        const tf = (item.flags & StateProjJump.TF) && item.lastPredicateResult && !predicateResult;
+
+        if (ft || tt || tf) {
+          const jump = (ft ? StateProjJump.FT : 0) | (tt ? StateProjJump.TT : 0) | (tf ? StateProjJump.TF : 0);
+          item.listener({state: _flowState, data: predicateValue.data, jump});
+        }
+
+        item.lastPredicateResult = predicateResult;
+      }
+    }
+  }
+
+  function _predicateResult(predicateValue) {
+    return predicateValue === true || (predicateValue !== undefined && predicateValue.result === true);
   }
 
   function _doNext() {
@@ -133,6 +315,11 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         _setRunningState(RunningState.PAUSED);
       }
 
+      _notifyStateListeners();
+      _notifyStateProjListeners();
+
+      _rescheduleIfNeeded(task);
+
       _doNext();
       _canBeStarted = true;
 
@@ -147,6 +334,9 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       for (const onError of task.onError) {
         onError({error, taskId: task.id});
       }
+
+      _notifyStateListeners();
+      _notifyStateProjListeners();
 
       if (_runningState === RunningState.STOPPED) {
         return;
@@ -204,7 +394,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
           break;
       }
     } else {
-      let delay = typeof errorPolicy.delay === 'function' ? errorPolicy.delay() : errorPolicy.delay;
+      let delay = UtilsModule.getMaybeFuncValue(errorPolicy.delay);
       if (errorPolicy.action === OnErrorAction.RETRY_AFTER_PAUSE) {
         _setRunningState(RunningState.PAUSED);
         setTimeout(start, delay);
@@ -227,7 +417,6 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       case MergingPolicy.TAIL:
         return _tryToMergeTail(task);
     }
-
   }
 
   function _tryToMergeHead(task) {
@@ -236,7 +425,13 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       if (t.isMergeable()) {
         const mergedTask = t.merge(task);
         if (mergedTask) {
-          _tasks[i] = mergedTask;
+          if (mergedTask.priority === _tasks[i].priority) {
+            _tasks[i] = mergedTask;
+          } else {
+            _tasks.splice(i, 1);
+            const index = _findIndexToAdd(task, true);
+            _tasks.splice(index, 0, task);
+          }
           return true;
         }
       }
@@ -251,7 +446,13 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       if (t.isMergeable()) {
         const mergedTask = t.merge(task);
         if (mergedTask) {
-          _tasks[i] = mergedTask;
+          if (mergedTask.priority === _tasks[i].priority) {
+            _tasks[i] = mergedTask;
+          } else {
+            _tasks.splice(i, 1);
+            const index = _findIndexToAdd(task, true);
+            _tasks.splice(index, 0, task);
+          }
           return true;
         } else {
           return false;
@@ -260,6 +461,16 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     }
 
     return false;
+  }
+
+  function _rescheduleIfNeeded(task) {
+    const intervalValue = task.getRepeatingInterval();
+    if (intervalValue === undefined) {
+      return;
+    }
+
+    _timeoutTaskCount++;
+    setTimeout(() => addTask(task, false, true), intervalValue);
   }
 
   function start() {
@@ -345,6 +556,10 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     }
   }
 
+  function hasScheduledTasks() {
+    return _timeoutTaskCount > 0;
+  }
+
   // noinspection JSUnusedGlobalSymbols
   return {
     getName,
@@ -353,6 +568,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     getCurrentValue,
 
     addTask,
+    cancelTask,
 
     start,
     stop,
@@ -365,7 +581,19 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     length,
 
     addFlowIsEmptyListener,
-    removeFlowIsEmptyListener
+    removeFlowIsEmptyListener,
+
+    addStateListener,
+    removeStateListener,
+    promiseForState,
+
+    addStateProjListener,
+    removeStateProjListener,
+
+    getFlowState,
+    setFlowState,
+
+    hasScheduledTasks
   }
 }
 
@@ -374,6 +602,7 @@ module.exports = {
   OnErrorAction,
   RunningState,
   MergingPolicy,
+  StateProjJump,
 
   AFTask,
   AFTaskState,
