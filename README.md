@@ -366,6 +366,28 @@ A BASIC merger as in example above just ignores a new added task if equal task
 (see method *isTaksEqual()* in example code) is already exists in queue. It also
 adds onSuccess and onError of a new task to existing one.
 
+## Task priority
+
+By default every new task is added to the end of AsyncFlow queue because all the tasks
+have the same (AFTaskPriority.NORMAL) priority. The task priority can be set either 
+via constructor or by task.priority assignment. The value of priority should be numerical.
+You can use some predefined constants to make your code more readable:
+
+```javascript
+const AFTaskPriority = Object.freeze({
+  HIGHEST: 0,
+  HIGH: 64,
+  NORMAL: 128,
+  LOW: 192,
+  LOWEST: 255
+});
+```
+
+Please note that BASIC merger choose a highest priority (i.e. minimal value) from merged 
+task priorities. It means if there is task1 in queue with priority NORMAL and you add now
+a new task2 with priority HIGH then a merged task will have a priority HIGH and will be 
+moved closer to head of queue.
+
 ## AFManager
 
 AFManager provides a method to resolve created AsyncFlow by its name.
