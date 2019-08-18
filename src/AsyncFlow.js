@@ -89,7 +89,10 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   /*
     task : AFTask | function
    */
+  // TODO: return promise that will be resolved with task result
   function addTask(task, intoHead, isDelayedTask) {
+    const {promise, promiseCallbacks} = _createPromiseCallbacks();
+
     if (_runningState === RunningState.STOPPED) {
       throw Error('Can\'t add task to stopped flow');
     }
@@ -197,12 +200,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   }
 
   function promiseForState(predicate) {
-    let promiseCallbacks = {};
-
-    const promise = new Promise((res, rej) => {
-      promiseCallbacks.resolve = res;
-      promiseCallbacks.reject = rej;
-    });
+    const {promise, promiseCallbacks} = _createPromiseCallbacks();
 
     _stateListenerItems.push({
       predicate,
@@ -210,6 +208,17 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     });
 
     return promise;
+  }
+
+  function _createPromiseCallbacks() {
+    const promiseCallbacks = {};
+
+    const promise = new Promise((res, rej) => {
+      promiseCallbacks.resolve = res;
+      promiseCallbacks.reject = rej;
+    });
+
+    return {promise, promiseCallbacks};
   }
 
   function _notifyStateListeners() {
