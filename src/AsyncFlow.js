@@ -11,6 +11,7 @@ const MergingPolicy = ConstantsModule.MergingPolicy;
 const StateProjJump = ConstantsModule.StateProjJump;
 const AFTaskState = ConstantsModule.AFTaskState;
 const AFTaskMerger = ConstantsModule.AFTaskMerger;
+const AFTaskPriority = ConstantsModule.AFTaskPriority;
 
 const _ = require('lodash');
 
@@ -603,6 +604,8 @@ module.exports = {
   AFTask,
   AFTaskState,
   AFTaskMerger,
+
+  AFTaskPriority,
 
   createAFManager
 };
