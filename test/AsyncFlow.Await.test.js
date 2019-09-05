@@ -145,16 +145,4 @@ describe('AsyncFlow: Await', () => {
     expect(val2).toBe('1'); // after merging the second task result is overridden by first one
   });
 
-  it ('', async () => {
-    let currentPromise = flow.addTask(task);
-    while (currentPromise) {
-      try {
-        const {result, currentPromise: promise} = (await currentPromise).throwOnError({throwIfCanceled: true});
-      } catch (e) {
-        currentPromise = e.promise;
-      }
-    }
-
-  });
-
 });
