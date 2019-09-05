@@ -388,6 +388,26 @@ task priorities. It means if there is task1 in queue with priority NORMAL and yo
 a new task2 with priority HIGH then a merged task will have a priority HIGH and will be 
 moved closer to head of queue.
 
+## await syntax
+
+As you've already seen above you can use *onSuccess()* and *onError()* callbacks with flow tasks.
+There is also an option of different syntax using **await** because *addTask()* method returns a promise.
+It should be taken into account though that there are some cases when AsyncFlow restarts the task by itself:
+it is true for repeating tasks and for case of the one of retrying onErrorPolices. That is why a most 
+general form of await usage is:
+
+```javascript
+let currentPromise = flow.addTask(task);
+while (currentPromise) {
+  try {
+    const {result, currentPromise: promise} = (await currentPromise).throwOnError({throwIfCanceled: true});
+    // we do something useful with result here
+  } catch (e) {
+    currentPromise = e.promise;
+  }
+}
+```
+
 ## AFManager
 
 AFManager provides a method to resolve created AsyncFlow by its name.

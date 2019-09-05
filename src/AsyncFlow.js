@@ -113,7 +113,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     }
 
     if (task.state === AFTaskState.CANCELED) {
-      task.currentPromise.resolve({canceled: true});
+      _callPromiseResolve({task});
       return task.currentPromise;
     }
 
@@ -181,7 +181,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     for (let i = 0; i < _tasks.length; i++) {
       if (task === _tasks[i]) {
         _tasks.splice(i, 1);
-        task.currentPromise.resolve({canceled: true});
+        _callPromiseResolve({task});
         break;
       }
     }
@@ -421,7 +421,10 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         throw {taskId: task.id, error, promise};
       };
     } else {
-      throwOnError = () => {
+      throwOnError = ({throwIfCanceled} = {throwIfCanceled: false}) => {
+        if (throwIfCanceled && task.state === AFTaskState.CANCELED) {
+          throw {taskId: task.id, error: 'Task is canceled', canceled: true};
+        }
         return {taskId: task.id, result, promise}
       };
     }

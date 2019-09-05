@@ -7,7 +7,7 @@ describe('AsyncFlow: Await', () => {
   const AFTaskMerger = AsyncFlow.AFTaskMerger;
 
   class Task extends AFTask {
-    constructor({result, error, type}) {
+    constructor({result, error, type, repeating}) {
       const func = async () => {
         if (error) {
           throw error;
@@ -16,7 +16,12 @@ describe('AsyncFlow: Await', () => {
         return result;
       };
 
-      super({func, merger: AFTaskMerger.BASIC});
+      const params = {func, merger: AFTaskMerger.BASIC};
+      if (repeating) {
+        params.repeatingInterval = 20;
+      }
+
+      super(params);
 
       this._type = type;
     }
@@ -75,6 +80,54 @@ describe('AsyncFlow: Await', () => {
     }
   });
 
+  it('Should throw exception on canceled task if flag is set on', async () => {
+    const flow = createAsyncFlow({
+      name: 'flow',
+      onErrorPolicy: {action: OnErrorAction.RETRY_AFTER_PAUSE, attempts: 2, delay: 10}
+    });
+
+    const task = new Task({result: 'example', error: 'SomeError!'});
+    let currentPromise = flow.addTask(task);
+    flow.cancelTask(task);
+
+    flow.start();
+
+    while (currentPromise) {
+      try {
+        const {result, currentPromise: promise} = (await currentPromise).throwOnError({throwIfCanceled: true});
+      } catch (e) {
+        expect(e.canceled).toBe(true);
+        currentPromise = e.promise;
+        expect(currentPromise).toBeUndefined();
+      }
+    }
+  });
+
+  it('Should work with repeating tasks', async (done) => {
+    const flow = createAsyncFlow({name: 'flow'});
+
+    const task = new Task({result: 'example', repeating: true});
+    let currentPromise = flow.addTask(task);
+
+    flow.start();
+
+    let i = 0;
+
+    while (currentPromise) {
+      try {
+        const {result, currentPromise: promise} = (await currentPromise).throwOnError({throwIfCanceled: true});
+        expect(result).toBe('example');
+        i++;
+        if (i === 3) {
+          flow.cancelTask(task);
+        }
+      } catch (e) {
+        currentPromise = e.promise;
+        done();
+      }
+    }
+  });
+
   it('Should correctly work in multiple awaits case', async () => {
     const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.TAIL});
 
@@ -90,6 +143,18 @@ describe('AsyncFlow: Await', () => {
 
     expect(val1).toBe('1');
     expect(val2).toBe('1'); // after merging the second task result is overridden by first one
+  });
+
+  it ('', async () => {
+    let currentPromise = flow.addTask(task);
+    while (currentPromise) {
+      try {
+        const {result, currentPromise: promise} = (await currentPromise).throwOnError({throwIfCanceled: true});
+      } catch (e) {
+        currentPromise = e.promise;
+      }
+    }
+
   });
 
 });
