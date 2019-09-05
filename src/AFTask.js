@@ -30,7 +30,10 @@ class AFTask {
 
     if (onErrorPolicy !== undefined) {
       UtilsModule.validateOnErrorPolicy(onErrorPolicy);
+      UtilsModule.fixOnErrorPolicy(onErrorPolicy);
     }
+
+    this._currentPromise = undefined;
 
     this._merger = merger;
 
@@ -44,6 +47,7 @@ class AFTask {
     this.mergeListeners = this.mergeListeners.bind(this);
     this.mergePriority = this.mergePriority.bind(this);
     this.isTaskEqual = this.isTaskEqual.bind(this);
+    this.isRepeating = this.isRepeating.bind(this);
     this._basicMerge = this._basicMerge.bind(this);
 
     this.taskFunc = this.taskFunc.bind(this);
@@ -92,7 +96,8 @@ class AFTask {
       return false;
     }
 
-    return this.mergeListeners(task).mergePriority(task);
+    return this.mergeListeners(task)
+      .mergePriority(task);
   }
 
   mergeListeners(...tasks) {
@@ -138,6 +143,10 @@ class AFTask {
     return this._onErrorPolicy;
   }
 
+  set onErrorPolicy(value) {
+    this._onErrorPolicy = value;
+  }
+
   isMergeable() {
     return !!this._merger && this._merger !== AFTaskMerger.NONE;
   }
@@ -162,6 +171,19 @@ class AFTask {
 
   set priority(value) {
     this._priority = value;
+  }
+
+  get currentPromise() {
+    return this._currentPromise;
+  }
+
+  set currentPromise(value) {
+    this._currentPromise = value;
+  }
+
+  isRepeating() {
+    const interval = this.getRepeatingInterval();
+    return interval !== undefined;
   }
 }
 

@@ -337,5 +337,4 @@ describe('AsyncFlow', () => {
     flow.start();
   });
 
-})
-;
+});

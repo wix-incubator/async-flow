@@ -1,0 +1,95 @@
+describe('AsyncFlow: Await', () => {
+  const AsyncFlow = require('../src/AsyncFlow');
+  const createAsyncFlow = AsyncFlow.createAsyncFlow;
+  const AFTask = AsyncFlow.AFTask;
+  const OnErrorAction = AsyncFlow.OnErrorAction;
+  const MergingPolicy = AsyncFlow.MergingPolicy;
+  const AFTaskMerger = AsyncFlow.AFTaskMerger;
+
+  class Task extends AFTask {
+    constructor({result, error, type}) {
+      const func = async () => {
+        if (error) {
+          throw error;
+        }
+
+        return result;
+      };
+
+      super({func, merger: AFTaskMerger.BASIC});
+
+      this._type = type;
+    }
+
+    isTaskEqual(task) {
+      return this._type === task._type;
+    }
+  }
+
+  it('Should await until task is done: success', async () => {
+    const flow = createAsyncFlow({name: 'flow'});
+    flow.start();
+    const {result} = await flow.addTask(new Task({result: 'example'}));
+    expect(result).toBe('example');
+  });
+
+  it('Should await until task is done: error', async () => {
+    const flow = createAsyncFlow({name: 'flow'});
+    flow.start();
+    const {result, error} = await flow.addTask(new Task({result: 'example', error: 'SomeError!'}));
+    expect(result).toBe(undefined);
+    expect(error).toBe('SomeError!');
+  });
+
+  it('Should do nothing on throwOnError if succeed', async () => {
+    const flow = createAsyncFlow({name: 'flow'});
+    flow.start();
+    let x;
+    try {
+      const {result} = (await flow.addTask(new Task({result: 'example'}))).throwOnError();
+      expect(result).toBe('example');
+      x = 1;
+    } catch (e) {
+      x = 2;
+    }
+
+    expect(x).toBe(1);
+  });
+
+  it('Should throw exception on throwOnError if error occurred', async () => {
+    const flow = createAsyncFlow({
+      name: 'flow',
+      onErrorPolicy: {action: OnErrorAction.RETRY_AFTER_PAUSE, attempts: 2, delay: 10}
+    });
+
+    flow.start();
+
+    let promise = flow.addTask(new Task({result: 'example', error: 'SomeError!'}));
+    while (promise) {
+      try {
+        (await promise).throwOnError();
+      } catch (e) {
+        expect(e.error).toBe('SomeError!');
+        promise = e.promise;
+      }
+    }
+  });
+
+  it('Should correctly work in multiple awaits case', async () => {
+    const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.TAIL});
+
+    let promise1 = flow.addTask(new Task({result: '1', type: 'mergingTask'}));
+    let promise2 = flow.addTask(new Task({result: '2', type: 'mergingTask'}));
+
+    expect(promise1).toEqual(promise2);
+
+    flow.start();
+
+    const val1 = (await promise1).result;
+    const val2 = (await promise2).result;
+
+    expect(val1).toBe('1');
+    expect(val2).toBe('1'); // after merging the second task result is overridden by first one
+  });
+
+});

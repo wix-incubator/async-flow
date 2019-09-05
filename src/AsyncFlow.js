@@ -31,6 +31,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
 
   const _onErrorPolicy = onErrorPolicy !== undefined ? onErrorPolicy : {action: OnErrorAction.STOP};
   UtilsModule.validateOnErrorPolicy(_onErrorPolicy);
+  UtilsModule.fixOnErrorPolicy(_onErrorPolicy);
 
   const _mergingPolicy = mergingPolicy !== undefined ? mergingPolicy : MergingPolicy.NONE;
 
@@ -89,10 +90,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   /*
     task : AFTask | function
    */
-  // TODO: return promise that will be resolved with task result
   function addTask(task, intoHead, isDelayedTask) {
-    const {promise, promiseCallbacks} = _createPromiseCallbacks();
-
     if (_runningState === RunningState.STOPPED) {
       throw Error('Can\'t add task to stopped flow');
     }
@@ -101,16 +99,28 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
       task = new AFTask({func: task});
     }
 
+    if (!task.onErrorPolicy) {
+      task.onErrorPolicy = UtilsModule.cloneOnErrorPolicy(_onErrorPolicy);
+    }
+
+    if (!task.currentPromise) {
+      task.currentPromise = _createPromise();
+    }
+
     if (isDelayedTask) {
       _timeoutTaskCount--;
     }
 
     if (task.state === AFTaskState.CANCELED) {
-      return;
+      task.currentPromise.resolve({canceled: true});
+      return task.currentPromise;
     }
 
-    if (_mergingPolicy !== MergingPolicy.NONE && _tryToMergeTask(task)) {
-      return;
+    if (_mergingPolicy !== MergingPolicy.NONE) {
+      const mergedTask = _tryToMergeTask(task);
+      if (mergedTask) {
+        return mergedTask.currentPromise.promise;
+      }
     }
 
     task.state = AFTaskState.WAITING;
@@ -121,6 +131,8 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     if (_tasks.length === 1 && _runningState === RunningState.RUNNING) {
       _run();
     }
+
+    return task.currentPromise.promise;
   }
 
   function _findIndexToAdd(task, intoHead) {
@@ -168,6 +180,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     for (let i = 0; i < _tasks.length; i++) {
       if (task === _tasks[i]) {
         _tasks.splice(i, 1);
+        task.currentPromise.resolve({canceled: true});
         break;
       }
     }
@@ -200,25 +213,27 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   }
 
   function promiseForState(predicate) {
-    const {promise, promiseCallbacks} = _createPromiseCallbacks();
+    const {promise, resolve, reject} = _createPromise();
 
     _stateListenerItems.push({
       predicate,
-      promiseCallbacks
+      resolve,
+      reject
     });
 
     return promise;
   }
 
-  function _createPromiseCallbacks() {
-    const promiseCallbacks = {};
+  function _createPromise() {
+    let resolve;
+    let reject;
 
     const promise = new Promise((res, rej) => {
-      promiseCallbacks.resolve = res;
-      promiseCallbacks.reject = rej;
+      resolve = res;
+      reject = rej;
     });
 
-    return {promise, promiseCallbacks};
+    return {promise, resolve, reject};
   }
 
   function _notifyStateListeners() {
@@ -231,7 +246,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
           i++;
         } else {
           _stateListenerItems.splice(i, 1);
-          const resolve = stateListenerItem.promiseCallbacks.resolve;
+          const resolve = stateListenerItem.resolve;
           if (resolve) {
             resolve({state: _flowState, data: predicateValue.data});
           }
@@ -316,6 +331,10 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         onSuccess({result, taskId: task.id});
       }
 
+      const nextPromise = task.isRepeating() ? _createPromise() : undefined;
+      _callPromiseResolve({task, result, nextPromise});
+      task.currentPromise = nextPromise;
+
       if (_runningState === RunningState.STOPPED) {
         return;
       }
@@ -344,6 +363,11 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         onError({error, taskId: task.id});
       }
 
+      const shouldRetry = _isRetryErrorPolicy(task.onErrorPolicy) && task.onErrorPolicy.attempts > 0;
+      const nextPromise = shouldRetry || task.isRepeating() ? _createPromise() : undefined;
+      _callPromiseResolve({task, error, nextPromise});
+      task.currentPromise = nextPromise;
+
       _notifyStateListeners();
       _notifyStateProjListeners();
 
@@ -355,8 +379,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         _setRunningState(RunningState.PAUSED);
       }
 
-      const errorPolicy = task.onErrorPolicy !== undefined ? task.onErrorPolicy : _onErrorPolicy;
-      switch (errorPolicy.action) {
+      switch (task.onErrorPolicy.action) {
         case OnErrorAction.STOP:
           _setRunningState(RunningState.STOPPED);
           if (_afManager) {
@@ -371,7 +394,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         case OnErrorAction.RETRY_FIRST:
         case OnErrorAction.RETRY_LAST:
         case OnErrorAction.RETRY_AFTER_PAUSE:
-          _retry(task, errorPolicy);
+          _retry(task);
           break;
 
         case OnErrorAction.CONTINUE:
@@ -383,13 +406,45 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
     }
   }
 
-  function _retry(task, errorPolicy) {
+  function _isRetryErrorPolicy(errorPolicy) {
+    return errorPolicy.action === OnErrorAction.RETRY_FIRST
+      || errorPolicy.action === OnErrorAction.RETRY_LAST
+      || errorPolicy.action === OnErrorAction.RETRY_AFTER_PAUSE;
+  }
+
+  function _callPromiseResolve({task, result, error, nextPromise}) {
+    const promise = nextPromise !== undefined ? nextPromise.promise : undefined;
+    let throwOnError;
+    if (error) {
+      throwOnError = () => {
+        throw {taskId: task.id, error, promise};
+      };
+    } else {
+      throwOnError = () => {
+        return {taskId: task.id, result, promise}
+      };
+    }
+
+    if (task.currentPromise) {
+      task.currentPromise.resolve({
+        taskId: task.id,
+        result,
+        error,
+        promise,
+        throwOnError
+      });
+    }
+  }
+
+  function _retry(task) {
+    const errorPolicy = task.onErrorPolicy;
+
     if (errorPolicy.attempts !== undefined) {
       if (errorPolicy.attempts <= 0) {
         _doNext();
-      } else {
-        errorPolicy.attempts--;
+        return;
       }
+      errorPolicy.attempts--;
     }
 
     if (errorPolicy.delay === undefined) {
@@ -431,8 +486,9 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
   function _tryToMergeHead(task) {
     for (let i = 0; i < _tasks.length; i++) {
       if (_tasks[i].isMergeable()) {
-        if (_mergeTask(i, task)) {
-          return true;
+        const mergedTask = _mergeTask(i, task);
+        if (mergedTask) {
+          return mergedTask;
         }
       }
     }
@@ -462,7 +518,7 @@ function asyncFlow({afManager, name, onErrorPolicy, mergingPolicy, initValue}) {
         const index = _findIndexToAdd(newTask, true);
         _tasks.splice(index, 0, newTask);
       }
-      return true;
+      return mergedTask;
     } else {
       return false;
     }
