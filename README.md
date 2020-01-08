@@ -1,44 +1,46 @@
-# async-flow
+# AsyncFlow
 
-**async-flow** is an easy to use js module organizing multiple async tasks 
-in a queue to run them consistently, one in a time. It provides API to
-manage running state of queue, pass values from task to next task in queue,
-handle errors, automatically rerun task if it needed, merge a new added
-task to existing one and so on.
+**async-flow** is an easy to use js module organizing multiple async tasks
+into a queue to be run one at a time. Via its API you can:
+- manage running state of a queue
+- pass values between tasks in a queue
+- handle errors
+- automatically rerun task if/when needed
+- merge a newly added task with an existing one
+- and so on
 
 ## Simplest example
 
 ```javascript
-// first of all we create flow 
-// it is in the PAUSED state just after creation
-// and should be started by start() call.
+// first of all we create the flow,
+// which is launched in the PAUSED state
+// and should be started by the start() call.
 
 const flow = createAsyncFlow({name: 'example'});
 flow.addTask(new AFTask({func: yourAsyncFunc1}));
 flow.addTask(new AFTask({func: yourAsyncFunc2}));
 flow.start();
 
-// a new task can be added to the end of flow at every time 
-// and in every point of application 
+// new tasks can be added to the end of the flow at any time
+// and at any point in the application
 
 flow.addTask(new AFTask({func: yourAsyncFunc3}));
 
-// if you don't want to customize task by passing onSuccess, onError
-// callbacks, onErrorPolicy etc. (see AFTask.constructor())
-// you can pass to addTask just a function
+// if you don't need/want to customize tasks by passing callbacks
+// like onSuccess, onError, or onErrorPolicy, etc. (see AFTask.constructor()),
+// you can simply pass addTask a function, like so:
 
 flow.addTask(yourAsyncFunc4);
 
 ```
 
-## It is possible to use result of one task in the next one
+## Using task results in other tasks
 
-Every task function receives as a parameter a last successfully 
-evaluated result of previous tasks. A first task in the flow 
-receives as a parameter initValue that passed to createAsyncFlow() 
-function.
+The first task in the flow receives the `initValue` as a parameter that's passed to `createAsyncFlow()` function. Every subsequent task function then receives the last successfully evaluated result of the previously queued task as its parameter.
+
 
 ```javascript
+// let's start with a small handy snippet
 class SymbolTask extends AFTask {
   constructor({symbol}) {
     super({func: async (string) => {
@@ -46,23 +48,21 @@ class SymbolTask extends AFTask {
     }});
   }
 }
-
+// and call it several times, adding it to the flow
 const flow = createAsyncFlow({name: 'pass', initValue: ''});
 flow.start();
 flow.addTask(new SymbolTask('a'));
 flow.addTask(new SymbolTask('b'));
 flow.addTask(new SymbolTask('c'));
 
-// after all these tasks are done, a current value of flow is 'abc'
+// so now, after all the tasks are done,
+// current value of flow is 'abc'
 console.log(flow.getCurrentValue());
-``` 
+```
 
-## How to listen all tasks are done
+## Detecting when all tasks are done
 
-It can be added and removed a listener to get callback when flow is empty 
-(i.e. all tasks have been done).
-For that purpose AsyncFlow provides methods 
-*addFlowIsEmptyListener()* and *removeFlowIsEmptyListener()*.
+You can add / remove a listener and trigger a callback when the flow becomes empty - basically when all tasks are done. AsyncFlow's *addFlowIsEmptyListener()* and *removeFlowIsEmptyListener()* methods do just that:
 
 ```javascript
 flow.addFlowIsEmptyListener(({result, hasScheduledTasks}) => {
@@ -72,46 +72,42 @@ flow.addFlowIsEmptyListener(({result, hasScheduledTasks}) => {
 });
 ```
 
-In this example *result* is a current value of flow,
-while *hasScheduleTasks* is a boolean that set to true if there are tasks
-scheduled to be re-added into queue after some error.
+In the example above *result* is the current value of the flow,
+while *hasScheduleTasks* is a boolean set to `true` if there are tasks
+scheduled to be re-added into the queue after an error.
 
 ## onSuccess & onError callbacks
 
-It can be easily imagine that you want to do something if some task finished 
-successfully and something else in the case of error (i.e. exception).
-That is why you can pass to constructor of AFTask *onSuccess* and *onError* 
-callbacks, for example
+The *onSuccess* and *onError* callbacks can be used, as it is implied by their names, to handle certain task success / fail scenarios, for example:
 
 ```javascript
 function onTaskSuccess({result, taskId}) {
-  
+
 }
 
 function onTaskError({error, taskId}) {
-  
+
 }
 
 flow.addTask(new AFTask({
   func: myFunc,
-  id: 'myTask', 
-  onSuccess: onTaskSuccess, 
+  id: 'myTask',
+  onSuccess: onTaskSuccess,
   onError: onTaskError
 }))
 ```
 
 ## RunningState
 
-Just after creation a flow is in the RunningState.PAUSED that means 
-no any task is running. You can use method *start()* to run flow,
-method *pause()* to return it back to PAUSED state, method *stop()* to stop 
-a flow completely. 
+Right after it's creation, a flow is in the RunningState.PAUSED, which means
+no tasks are running. You can use the *start()* method to run the flow,
+*pause()* method to return it back to the PAUSED state, or *stop()* to stop
+the flow completely.
 
-After *stop()* is called a flow can't be rerun and throws exception on
-any attempts to change its state.
+After *stop()* is called, the flow can't be rerun and throws an exception on any attempts to change its state.
 
-The current running state can be found with *getRunningState()* method,
-that returns one of RunningState values:
+Current running state can be found with *getRunningState()*
+which returns one of RunningState values:
 
 ```javascript
 const RunningState = Object.freeze({
@@ -124,15 +120,11 @@ const RunningState = Object.freeze({
 
 ## Errors handling
 
-By default a flow interrupts its work by going to STOPPED state in the case 
-of exception thrown in the currently working task.
+If an exception is thrown by the task currently being processed, by default, a flow will interrupt its work by going into the STOPPED state.
 
-But default behaviour can be changed using *onErrorPolicy* parameter. Please
-note that such a parameter can be passed to *createAsyncFlow()* function 
-as well as to constructor of AFTask. If both of them defined a task policy 
-has priority over flow policy.
+The default behavior can be changed using the *onErrorPolicy* parameter. Please note that it can be passed to the *createAsyncFlow()* function as well as to the constructor of AFTask. Task policy has priority over flow policy.
 
-OnErrorPolicy object has a form:
+OnErrorPolicy object looks like this:
 
 ```javascript
 {
@@ -142,38 +134,34 @@ OnErrorPolicy object has a form:
 }
 ```
 
-where **action** is mandatory and can be
+**attempts** (max attempts counter) is optional and by default is 1
+
+**delay** (delay in ms to rerun a task after exception) is optional
+and makes sense for RETRY actions only (see below). If no value is passed, the flow will retry immediately.
+
+**action** is required and can be:
 
 ```javascript
 const OnErrorAction = Object.freeze({
-  STOP: 0,              // flow will be stopped after exception 
-  
+  STOP: 0,              // flow will be stopped after exception
+
   PAUSE: 1,             // flow will be paused after exception
-  
-  RETRY_FIRST: 2,       // flow will rerun a task that thrown exception, 
-                        // a task will be re-added into flow head
-                        
-  RETRY_LAST: 3,        // flow will rerun a task that thrown exception, 
-                        // a task will be re-added into flow tail
-                        
-  RETRY_AFTER_PAUSE: 4, // flow will be paused for a delay ms, 
-                        // and after that rerun a task
-  
-  CONTINUE: 5           // flow just continue to run a next task    
+
+  RETRY_FIRST: 2,       // flow will rerun the task that threw the exception,
+                        // task will be added to flow head
+
+  RETRY_LAST: 3,        // flow will rerun the task that threw the exception,
+                        // task will be added to flow tail
+
+  RETRY_AFTER_PAUSE: 4, // flow will be paused for a delay in ms,
+                        // and after that the task will be rerun
+
+  CONTINUE: 5           // flow will continue to the next task
 });
 
 ```
 
-**attempts** (max attempts counter) is optional and by default is 1,
-
-**delay** (delay in ms to rerun a task after exception) is also optional
-and makes sense for RETRY actions only. If it's absent it means that flow
-will retry immediately. 
-
-In the current implementation of RETRY actions a flow will be stopped if
-all retry attempts are not succeed.
-
-Here is a simple example:
+In the example below the flow will be stopped if all retry attempts fail:
 
 ```javascript
 let delay = 100;
@@ -188,42 +176,38 @@ const flow = createAsyncFlow({
   }
 });
 
-``` 
+```
 
 ## Repeating tasks
 
-If you need to schedule repeating task you can pass repeatingInterval to 
-task constructor:
+If you need to schedule a repeating task you can pass repeatingInterval to the task constructor:
 
 ```javascript
 const task = new IncTask({repeatingInterval: 20});
 ```
 
-Please note that repeatingInterval defines interval in MS between task
-finish time and the time when this task will be re-added to flow queue.
+Please note that `repeatingInterval` defines interval in ms between the task finish time and time when it's re-added to the flow queue.
 
-## How to cancel task
+## Canceling tasks
 
-A task can be cancelled by *AsyncFlow.cancel(task)* method call.
+A task can be canceled by the `AsyncFlow.cancel(task)` method call.
 
 ## Flow state
 
-Sometimes you'd like to be notified about some specific state change in the flow.
-Maybe you got extremal value from a sensor? Or important data from server?
-Or there were a lot of errors during flow work, and you need to care about it?
+Sometimes you might want to be notified about some specific state changes in the flow.
+Maybe you're getting external values from a sensor, or some data from a server, or there's a lot of errors being thrown when flow is running and you need to look more into it.
 
-For that reason there is a flow state listening mechanism of AsyncFlow.
-Every flow has internal object _flowState, that can be read by *getFlowState()*
-call and set by *setFlowState(newState)* call. 
+For scenarios like that this API provides a flow state listening mechanism.
 
-You can add state listener to be notified about some specific condition is true:
+Every flow has an internal object `_flowState`, that can be read by the `getFlowState()` function and is set by `setFlowState(newState)`.
+
+You can add a state listener to be notified when a specific condition is true:
 
 ```javascript
 flow.addStateListener(predicate, listener);
 ```
 
-where **predicate** is a function receiving state parameter and returning 
-boolean or object
+where `predicate` is a function receiving state parameter and returning a boolean or an object
 ```javascript
 {
   result: boolean,
@@ -232,6 +216,7 @@ boolean or object
 ```
 
 and **listener** is a function receiving {state, data} as a parameter.
+
 For example:
 
 ```javascript
@@ -240,12 +225,12 @@ flow.addStateListener((state) => state.a > 2, ({state}) => {
 });
 ```
 
-In this example listener will be called when state.a > 2. Please note that AsyncFlow notifies 
-state listeners between tasks; not at the setState() call. 
-Every state listener will be called (if predicate is true) until it removed from AsyncFlow
-by *removeStateListener(listener)* call.
+In the example above the listener will be called when state.a > 2. Please note that AsyncFlow notifies
+state listeners between tasks, not during the setState() call.
+Every state listener is be called (if predicate is true) until it is removed from the AsyncFlow
+by `removeStateListener(listener)`.
 
-You can also use await syntax to wait for a specific state condition. Just call *promiseForState()*, for example
+You can also use the `await` syntax to wait for a specific state condition. Just call `promiseForState()`, for example:
 
 ```javascript
 const {state} = await flow.promiseForState((state) => state.a > 2);
@@ -253,42 +238,41 @@ const {state} = await flow.promiseForState((state) => state.a > 2);
 
 ## Flow state projection
 
-Though you can follow flow state with state listeners that described above,
-there is one additional special mechanism in AsyncFlow. Just imagine you want
-to be notified when some state based function (we will name it *state projection* 
-or just *projection*) passes threshold.
+Though you can follow the flow state with state listeners described above, there is also another special mechanism in AsyncFlow.
+
+Say you need to be notified when some state-based function (let's call it *state projection*
+or just *projection*) passes a threshold.
 
 ![State Projection](state_projection.png)
 
-This figure gives us an example of some state projection value evolution over time.
-The projection threshold is set by predicate function that separates all the 
+The figure above illustrates an example of a state projection value evolution over time.
+The projection threshold is set by predicate function that separates all the
 area of projection values into two parts: True-area and False-area. We definitely
-want to know when projection will exceed threshold, i.e. there will be transition
+want to know when projection will exceed threshold, i.e. when there will be transition
 from False to True-area (FT).
-Sometimes we'd like to know also about back transition from True to False-area (TF).
-At last maybe we need to be notified on every projection value change while it
+Sometimes we'd like to also know about back transition from True to False-area (TF).
+Finally, sometimes we might need to be notified on every projection value change while it
 happens in True-area.
 
-AsyncFlow provides method
+AsyncFlow provides the following method
 ```javascript
 addStateProjListener(projection, predicate, listener, flags)
-``` 
+```
 
-where **projection** is a function receiving flow state as a parameter and returning
-some projectionValue,
+where **projection** is a function receiving flow state as a parameter and returning some `projectionValue` and
 
-**predicate** is a function receiving projectionValue parameter and returning boolean or object
-```javascript 
+**predicate** is a function receiving `projectionValue` parameter and returning a boolean or an object.
+
+```javascript
 {
     result: boolean,
     data: object
 }
 ```
-                 
-**listener** is a function receiving {state, data} as a parameter,
 
-and **flags** is optional and describes if a listener will be called on True->True
-and True->False moves. It can be constructed using *AsyncFlow.StateProjJump.TT* and
+**listener** is a function receiving `{state, data}` as a parameter,
+
+and **flags** is optional and describes if a listener is called on True->True and True->False moves. It can be constructed using *AsyncFlow.StateProjJump.TT* and
 *AsyncFlow.StateProjJump.TF* constants, as we see in the code example below:
 
 ```javascript
@@ -300,17 +284,14 @@ flow.addStateProjListener(
 ```
 
 The listener will be called on every FT, TT and TF change of projection.
-The projection is evaluated as *state.a*, and predicate receives this projection
+The projection is evaluated as *state.a*, predicate receives this projection
 value and returns *a > 2*.
 
 ## Tasks merging
 
-In some cases you'd like don't add a new task if the same task is already
-waiting in a queue to be run, but you want just add a listeners to existing
-task. Or maybe you wish to replace existing task some way by merging it
-with a new task. For that purpose you can use a merging mechanism of AsyncFlow.
+In some cases you might not want to add a new task if the same task is already waiting in the queue to be run, you might just want to add some listeners to an existing task. Or maybe you want to replace an existing task by merging it with a new task. You can use the merging mechanism of AsyncFlow to achieve just that.
 
-Let's start from a very simple example:
+Let's start with a very simple example:
 
 ```javascript
 class SymbolTask extends AFTask {
@@ -318,13 +299,13 @@ class SymbolTask extends AFTask {
     super({
       func: async (string) => {
         return string + symbol;
-      }, 
+      },
       merger: AFTaskMerger.BASIC
     });
-    
+
     this.symbol = symbol;
   }
-  
+
   isTaskEqual(task) {
     return this.symbol === task.symbol;
   }
@@ -335,43 +316,37 @@ const flow = createAsyncFlow({name: 'flow', mergingPolicy: MergingPolicy.HEAD});
 
 flow.addFlowIsEmptyListener(({result}) => {
   console.log(result);
-  // it logs 'abc' because last added task is merged by existing one
+  // it logs 'abc' because last added task is merged with the existing one
 });
 
 
 flow.addTask(new SymbolTask({symbol: 'a'}));
-flow.addTask(new SymbolTask({symbol: 'b'})); 
+flow.addTask(new SymbolTask({symbol: 'b'}));
 flow.addTask(new SymbolTask({symbol: 'c'}));
 flow.addTask(new SymbolTask({symbol: 'b'}));
 flow.start();
 ```
 
-First of all we need to create AsyncFlow that supports merging by passing
-not NONE (default) merging policy to createAsyncFlow() method. It can be
+First of all we need to create a flow that supports merging by passing a merging policy object to `createAsyncFlow()` that's something else than `NONE` (default). It can be
 
 ```javascript
 const MergingPolicy = Object.freeze({
   NONE: 0, // merging is off
-  HEAD: 1, // looking for task to merge to from the head of queue
+  HEAD: 1, // looking for the task to merge to at the head of queue
   TAIL: 2  // try to merge to last task in the queue only
 });
 ```
 
-Both tasks we are merging together should support merging; it means they have
-to get a not NONE merger as a constructor parameter. In the current version of
-AsyncFlow it can be either AFTaskMerger.BASIC or some custom method taking
-a task as a parameter and returning a merging task as a result.
+Both tasks we're merging together have to support merging; it means they have to have something else then `NONE` set as a constructor parameter. In the current version of
+AsyncFlow it can be either `AFTaskMerger.BASIC` or some custom method taking task as a parameter and returning a merged task as result.
 
-A BASIC merger as in example above just ignores a new added task if equal task 
-(see method *isTaksEqual()* in example code) is already exists in queue. It also
-adds onSuccess and onError of a new task to existing one.
+A BASIC merger, illustrated in the example above, will ignore a newly added task if there's already an identical task in the queue (see the *isTaksEqual()* method in example code).
+
+It also adds onSuccess and onError of the new task to the existing one.
 
 ## Task priority
 
-By default every new task is added to the end of AsyncFlow queue because all the tasks
-have the same (AFTaskPriority.NORMAL) priority. The task priority can be set either 
-via constructor or by task.priority assignment. The value of priority should be numerical.
-You can use some predefined constants to make your code more readable:
+By default every new task is added to the end of the AsyncFlow queue because all tasks have the same (AFTaskPriority.NORMAL) priority. The task priority can be set either via constructor or by task.priority assignment. The value of priority should be numerical. You can use some predefined constants to make your code more readable:
 
 ```javascript
 const AFTaskPriority = Object.freeze({
@@ -383,25 +358,22 @@ const AFTaskPriority = Object.freeze({
 });
 ```
 
-Please note that BASIC merger choose a highest priority (i.e. minimal value) from merged 
-task priorities. It means if there is task1 in queue with priority NORMAL and you add now
-a new task2 with priority HIGH then a merged task will have a priority HIGH and will be 
-moved closer to head of queue.
+Please note that BASIC merger chooses the highest priority (i.e. minimal value) from merged task priorities. This means that if there is a `task1` in queue with priority `NORMAL` and you add a new `task2` with priority `HIGH` then the merged task will have the priority set to `HIGH` and will be
+moved closer to the head of the queue.
 
 ## await syntax
 
 As you've already seen above you can use *onSuccess()* and *onError()* callbacks with flow tasks.
-There is also an option of different syntax using **await** because *addTask()* method returns a promise.
-It should be taken into account though that there are some cases when AsyncFlow restarts the task by itself:
-it is true for repeating tasks and for case of the one of retrying onErrorPolices. That is why a most 
-general form of await usage is:
+Alternatively you also have an option of using a different syntax - **await**, because *addTask()* method returns a promise.
+It should be taken into account though that there are some cases when AsyncFlow restarts the task by itself: it is true for repeating tasks and for some cases of handling onErrorPolices.
+That's why the most general form of `await` usage is:
 
 ```javascript
 let currentPromise = flow.addTask(task);
 while (currentPromise) {
   try {
     const {result, currentPromise: promise} = (await currentPromise).throwOnError({throwIfCanceled: true});
-    // we do something useful with result here
+    // we do something useful with the result here
   } catch (e) {
     currentPromise = e.promise;
   }
@@ -410,7 +382,7 @@ while (currentPromise) {
 
 ## AFManager
 
-AFManager provides a method to resolve created AsyncFlow by its name.
+AFManager provides a method to resolve the created AsyncFlow by its name.
 For example:
 
 ```javascript
@@ -427,6 +399,5 @@ Now you can easily get flow1 and flow2 from any part of your application:
 ```javascript
 const flow = global.afManager.resolve('flow1');
 ```
- 
-Please note that it's not possible to add to the same AFManager a second 
-AsyncFlow of the same name. AFManager throws in that case an error.
+
+Please note that it's not possible to add a second AsyncFlow of the same name to the same AFManager, you'll get an error in that case.
